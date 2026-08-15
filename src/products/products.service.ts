@@ -228,6 +228,7 @@ export class ProductsService {
 
     const uploaded = await this.imageService.upload(file, {
       folder: `products/${product.id}`,
+      variant: 'product',
     });
 
     product.images.push({
@@ -239,7 +240,7 @@ export class ProductsService {
     const added = product.images[product.images.length - 1];
     return {
       id: String(added._id),
-      url: added.url,
+      url: this.imageService.getDeliveryUrl(added.publicId, 'product'),
     };
   }
 
@@ -427,9 +428,12 @@ export class ProductsService {
         return { id: null, url: img };
       }
       const row = img as Record<string, unknown>;
+      const publicId = row.publicId as string | undefined;
       return {
         id: row._id ? String(row._id) : null,
-        url: row.url as string,
+        url: publicId
+          ? this.imageService.getDeliveryUrl(publicId, 'product')
+          : (row.url as string),
       };
     });
 

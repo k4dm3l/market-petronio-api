@@ -3,6 +3,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  ImageDeliveryVariant,
   ImageStorageAdapter,
   ImageUploadOptions,
   ImageUploadResult,
@@ -24,5 +25,12 @@ export class NoOpImageStorageAdapter extends ImageStorageAdapter {
     throw new ServiceUnavailableException(
       'Image storage is not configured (set CLOUDINARY_* env vars)',
     );
+  }
+
+  getDeliveryUrl(
+    publicId: string,
+    _variant?: ImageDeliveryVariant,
+  ): string {
+    return `https://res.cloudinary.com/demo/image/upload/${publicId}`;
   }
 }

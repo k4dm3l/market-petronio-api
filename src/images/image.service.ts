@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   IMAGE_STORAGE_ADAPTER,
+  ImageDeliveryVariant,
   ImageStorageAdapter,
   ImageUploadOptions,
   ImageUploadResult,
@@ -27,6 +28,13 @@ export class ImageService {
   async delete(publicId: string): Promise<void> {
     if (!publicId?.trim()) return;
     await this.storage.delete(publicId);
+  }
+
+  getDeliveryUrl(
+    publicId: string,
+    variant: ImageDeliveryVariant = 'default',
+  ): string {
+    return this.storage.getDeliveryUrl(publicId, variant);
   }
 
   private assertValidImage(file: Express.Multer.File | undefined) {

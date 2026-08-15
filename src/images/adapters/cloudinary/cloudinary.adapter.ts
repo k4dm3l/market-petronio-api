@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import {
+  ImageDeliveryVariant,
   ImageStorageAdapter,
   ImageUploadOptions,
   ImageUploadResult,
@@ -35,7 +36,7 @@ export class CloudinaryImageAdapter extends ImageStorageAdapter {
           resource_type: 'image',
         },
         (err, result: UploadApiResponse | undefined) => {
-          if (err || !result?.secure_url || !result.public_id) {
+          if (err || !result?.public_id) {
             this.logger.error(
               `Cloudinary upload failed: ${err?.message ?? 'unknown'}`,
             );
@@ -44,9 +45,10 @@ export class CloudinaryImageAdapter extends ImageStorageAdapter {
             );
             return;
           }
+          const publicId = result.public_id;
           resolve({
-            url: result.secure_url,
-            publicId: result.public_id,
+            publicId,
+            url: this.getDeliveryUrl(publicId, options?.variant ?? 'default'),
           });
         },
       );
@@ -56,8 +58,20 @@ export class CloudinaryImageAdapter extends ImageStorageAdapter {
 
   async delete(publicId: string): Promise<void> {
     try {
-      await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+      const result = (await cloudinary.uploader.destroy(publicId, {
+        resource_type: 'image',
+        invalidate: true,
+      })) as { result?: string };
+
+      // "not found" is idempotent success (already gone)
+      if (result.result !== 'ok' && result.result !== 'not found') {
+        this.logger.error(
+          `Cloudinary delete unexpected result for ${publicId}: ${result.result}`,
+        );
+        throw new InternalServerErrorException('Failed to delete image');
+      }
     } catch (err) {
+      if (err instanceof InternalServerErrorException) throw err;
       this.logger.error(
         `Cloudinary delete failed for ${publicId}: ${
           err instanceof Error ? err.message : err
@@ -65,5 +79,35 @@ export class CloudinaryImageAdapter extends ImageStorageAdapter {
       );
       throw new InternalServerErrorException('Failed to delete image');
     }
+  }
+
+  getDeliveryUrl(
+    publicId: string,
+    variant: ImageDeliveryVariant = 'default',
+  ): string {
+    const transformation = this.transformationFor(variant);
+    return cloudinary.url(publicId, {
+      secure: true,
+      resource_type: 'image',
+      // Separate components: crop (optional) then f_auto / q_auto
+      transformation,
+    });
+  }
+
+  private transformationFor(variant: ImageDeliveryVariant) {
+    const optimize = [{ fetch_format: 'auto' }, { quality: 'auto' }];
+
+    if (variant === 'avatar') {
+      return [
+        { width: 400, height: 400, crop: 'thumb', gravity: 'face' },
+        ...optimize,
+      ];
+    }
+
+    if (variant === 'product') {
+      return [{ width: 1200, crop: 'limit' }, ...optimize];
+    }
+
+    return optimize;
   }
 }

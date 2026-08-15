@@ -113,6 +113,7 @@ export class UsersService {
     const previousPublicId = user.image?.publicId;
     const uploaded = await this.imageService.upload(file, {
       folder: `users/${user.id}`,
+      variant: 'avatar',
     });
 
     user.image = { url: uploaded.url, publicId: uploaded.publicId };
@@ -174,7 +175,16 @@ export class UsersService {
       name: user.name,
       role: user.role,
       isActive: user.isActive,
-      image: user.image ? { url: user.image.url } : null,
+      image: user.image?.publicId
+        ? {
+            url: this.imageService.getDeliveryUrl(
+              user.image.publicId,
+              'avatar',
+            ),
+          }
+        : user.image?.url
+          ? { url: user.image.url }
+          : null,
       deliveryInformation: user.deliveryInformation ?? null,
     };
   }
