@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -72,20 +73,37 @@ export class CreateProductDto {
   @IsEnum(ProductAvailability)
   availability: ProductAvailability;
 
-  @ApiPropertyOptional({ example: 2 })
+  @ApiPropertyOptional({
+    example: 48,
+    description: 'Preparation time in hours (e.g. 48 = 2 days)',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
-  preparationTimeDays?: number;
+  preparationTimeHours?: number;
 
   @ApiPropertyOptional({
     example: 5,
     description: 'Required minimum when made_to_order',
   })
-  @ValidateIf((o: CreateProductDto) => o.availability === ProductAvailability.MadeToOrder)
+  @ValidateIf(
+    (o: CreateProductDto) => o.availability === ProductAvailability.MadeToOrder,
+  )
   @IsInt()
   @Min(1)
   minimumOrderQuantity?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['seafood', 'shrimp', 'traditional', 'pacific-food'],
+    description: 'Normalized to lowercase/hyphenated; max 10; unique',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  tags?: string[];
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
@@ -133,17 +151,32 @@ export class UpdateProductDto {
   @IsEnum(ProductAvailability)
   availability?: ProductAvailability;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    example: 24,
+    description: 'Preparation time in hours',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
-  preparationTimeDays?: number;
+  preparationTimeHours?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
   @Min(1)
   minimumOrderQuantity?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['seafood', 'shrimp'],
+    description: 'Normalized to lowercase/hyphenated; max 10; unique',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  tags?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -199,6 +232,43 @@ export class QueryProductsDto {
   @IsOptional()
   @IsEnum(ProductAvailability)
   availability?: ProductAvailability;
+
+  @ApiPropertyOptional({
+    example: 'seafood,shrimp',
+    description:
+      'Comma-separated tags; AND semantics (product must include all). Normalized lowercase.',
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value : undefined))
+  tags?: string;
+
+  @ApiPropertyOptional({
+    description: 'With lng+radius: proximity filter on GET /products',
+    example: 3.8833,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @ApiPropertyOptional({ example: -77.0319 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Radius in meters' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(100)
+  @Max(100000)
+  radius?: number;
 }
 
 export class NearbyProductsDto {
@@ -232,4 +302,26 @@ export class NearbyProductsDto {
   @IsOptional()
   @IsMongoId()
   categoryId?: string;
+
+  @ApiPropertyOptional({
+    example: 'seafood,shrimp',
+    description: 'Comma-separated tags; AND semantics',
+  })
+  @IsOptional()
+  @IsString()
+  tags?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
 }

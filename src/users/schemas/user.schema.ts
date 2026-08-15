@@ -4,6 +4,28 @@ import { Role } from '../../common/enums/role.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
+@Schema({ _id: false })
+export class DeliveryGeoPoint {
+  @Prop({ type: String, enum: ['Point'], default: 'Point' })
+  type: 'Point';
+
+  /** [longitude, latitude] */
+  @Prop({ type: [Number], required: true })
+  coordinates: [number, number];
+}
+
+@Schema({ _id: false })
+export class DeliveryInformation {
+  @Prop({ type: DeliveryGeoPoint, required: true })
+  location: DeliveryGeoPoint;
+
+  @Prop({ required: true, trim: true })
+  address: string;
+
+  @Prop({ trim: true })
+  additionalInformation?: string;
+}
+
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
@@ -20,6 +42,10 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  /** Single default delivery address (spec 005 MVP) */
+  @Prop({ type: DeliveryInformation })
+  deliveryInformation?: DeliveryInformation;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

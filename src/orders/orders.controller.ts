@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -21,7 +22,9 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import {
   CreateOrderDto,
   CustomerOrdersListResponseDto,
+  DeliverySource,
   ListOrdersQueryDto,
+  OrderResponseDto,
   UpdateOrderStatusDto,
   UpdatePaymentDto,
   UpdateShippingDto,
@@ -37,7 +40,49 @@ export class OrdersController {
   @Roles(Role.Customer)
   @Post()
   @ApiOperation({
-    summary: 'Create order for a single cook (reserves stock when available)',
+    summary: 'Create order with delivery snapshot',
+    description: `
+Single-cook order. Stock is reserved for \`available\` products.
+
+**Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):
+
+- \`source: CUSTOMER_PROFILE\` — uses \`PATCH /users/me/delivery-information\`
+- \`source: CUSTOM\` — requires \`location\` (GeoJSON Point \`[lng, lat]\`) and \`address\`; \`additionalInformation\` optional
+    `.trim(),
+  })
+  @ApiBody({
+    type: CreateOrderDto,
+    examples: {
+      customerProfile: {
+        summary: 'Use saved customer delivery',
+        value: {
+          cookId: '507f1f77bcf86cd799439011',
+          items: [{ productId: '507f1f77bcf86cd799439012', quantity: 2 }],
+          delivery: { source: DeliverySource.CustomerProfile },
+          paymentMethod: 'nequi',
+        },
+      },
+      customDelivery: {
+        summary: 'Custom address for this order',
+        value: {
+          cookId: '507f1f77bcf86cd799439011',
+          items: [{ productId: '507f1f77bcf86cd799439012', quantity: 2 }],
+          delivery: {
+            source: DeliverySource.Custom,
+            location: {
+              type: 'Point',
+              coordinates: [-77.0319, 3.8833],
+            },
+            address: 'Calle 5 #10-20',
+            additionalInformation: 'Casa azul, next to the bakery',
+          },
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Created order including delivery snapshot',
+    type: OrderResponseDto,
   })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(user, dto);
@@ -54,7 +99,7 @@ Supports cursor pagination: \`?limit=20&cursor=...\`.
 Response for customers:
 \`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }\`
 
-**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile.
+**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in \`data\`).
     `.trim(),
   })
   @ApiOkResponse({
@@ -72,6 +117,7 @@ Response for customers:
   @Roles(Role.Customer, Role.Cook, Role.Admin)
   @Get(':id')
   @ApiOperation({ summary: 'Get order by id' })
+  @ApiOkResponse({ type: OrderResponseDto })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.ordersService.findOne(id, user);
   }
@@ -82,6 +128,7 @@ Response for customers:
     summary:
       'Advance order status (cook/admin) or cancel PENDING/CONFIRMED (customer/cook/admin)',
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   updateStatus(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
@@ -96,6 +143,7 @@ Response for customers:
     summary:
       'Update payment (customer reports paid; cook marks PAID)',
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   updatePayment(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
@@ -107,6 +155,7 @@ Response for customers:
   @Roles(Role.Cook, Role.Admin)
   @Patch(':id/shipping')
   @ApiOperation({ summary: 'Update shipping status / tracking (cook/admin)' })
+  @ApiOkResponse({ type: OrderResponseDto })
   updateShipping(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
@@ -118,6 +167,7 @@ Response for customers:
   @Roles(Role.Customer)
   @Post(':id/confirm-reception')
   @ApiOperation({ summary: 'Customer confirms order reception' })
+  @ApiOkResponse({ type: OrderResponseDto })
   confirmReception(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,

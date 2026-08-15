@@ -110,6 +110,29 @@ export class CustomerConfirmation {
   confirmedAt?: Date;
 }
 
+@Schema({ _id: false })
+export class OrderDeliveryGeoPoint {
+  @Prop({ type: String, enum: ['Point'], default: 'Point' })
+  type: 'Point';
+
+  /** [longitude, latitude] — snapshot at order creation */
+  @Prop({ type: [Number], required: true })
+  coordinates: [number, number];
+}
+
+/** Delivery snapshot on the order (spec 005) — independent of future profile edits */
+@Schema({ _id: false })
+export class OrderDelivery {
+  @Prop({ type: OrderDeliveryGeoPoint, required: true })
+  location: OrderDeliveryGeoPoint;
+
+  @Prop({ required: true, trim: true })
+  address: string;
+
+  @Prop({ trim: true })
+  additionalInformation?: string;
+}
+
 @Schema({ timestamps: true, collection: 'orders' })
 export class Order {
   @Prop({ required: true, unique: true })
@@ -126,6 +149,9 @@ export class Order {
 
   @Prop({ type: OrderTotals, required: true })
   totals: OrderTotals;
+
+  @Prop({ type: OrderDelivery, required: true })
+  delivery: OrderDelivery;
 
   @Prop({ type: OrderPayment, required: true })
   payment: OrderPayment;

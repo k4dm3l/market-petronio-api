@@ -18,6 +18,7 @@ import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
 import {
   CreateOrderDto,
+  DeliverySource,
   ListOrdersQueryDto,
   UpdateOrderStatusDto,
   UpdatePaymentDto,
@@ -25,6 +26,7 @@ import {
 } from './dto/order.dto';
 import {
   Order,
+  OrderDelivery,
   OrderDocument,
   OrderStatus,
   PaymentStatus,
@@ -56,6 +58,7 @@ export class OrdersService {
       throw new ForbiddenException('Only customers can create orders');
     }
 
+    const delivery = await this.resolveDeliverySnapshot(actor.id, dto);
     const cook = await this.cooksService.getById(dto.cookId);
     if (!cook || !cook.isActive) {
       throw new NotFoundException('Cook not found');
@@ -131,6 +134,7 @@ export class OrdersService {
         total: l.total,
       })),
       totals: { subtotal, shipping, total: subtotal + shipping },
+      delivery,
       payment: {
         status: PaymentStatus.Pending,
         method: dto.paymentMethod,
@@ -145,6 +149,49 @@ export class OrdersService {
     await this.notifyOrderCreated(order, customerId, cook.userId.toString());
 
     return this.toResponse(order);
+  }
+
+  /** Spec 005 — resolve + snapshot delivery before products/inventory. */
+  private async resolveDeliverySnapshot(
+    customerId: string,
+    dto: CreateOrderDto,
+  ): Promise<OrderDelivery> {
+    if (dto.delivery.source === DeliverySource.CustomerProfile) {
+      const user = await this.usersService.findById(customerId);
+      if (!user) throw new NotFoundException('User not found');
+
+      const snapshot = this.usersService.getDeliverySnapshot(user);
+      if (!snapshot) {
+        throw new BadRequestException(
+          'No saved delivery information. Set it on your profile or use delivery.source=CUSTOM with location and address.',
+        );
+      }
+      return snapshot;
+    }
+
+    // CUSTOM
+    if (!dto.delivery.location || !dto.delivery.address?.trim()) {
+      throw new BadRequestException(
+        'delivery.location and delivery.address are required when source is CUSTOM',
+      );
+    }
+
+    const [lng, lat] = dto.delivery.location.coordinates;
+    if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+      throw new BadRequestException(
+        'coordinates must be [longitude (-180..180), latitude (-90..90)]',
+      );
+    }
+
+    return {
+      location: {
+        type: 'Point',
+        coordinates: [lng, lat],
+      },
+      address: dto.delivery.address.trim(),
+      additionalInformation:
+        dto.delivery.additionalInformation?.trim() || undefined,
+    };
   }
 
   async findAll(actor: AuthUser, query: ListOrdersQueryDto = {}) {
@@ -580,6 +627,7 @@ export class OrdersService {
         total: i.total,
       })),
       totals: order.totals,
+      delivery: order.delivery,
       payment: order.payment,
       shipping: order.shipping,
       status: order.status,

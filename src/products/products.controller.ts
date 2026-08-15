@@ -31,7 +31,10 @@ export class ProductsController {
   @Public()
   @Get()
   @ApiOperation({
-    summary: 'List active products (available by default; search, category, price, cook, availability mode)',
+    summary:
+      'List products (search, category, cook, price, availability, tags AND, optional lat/lng/radius)',
+    description:
+      'Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity.',
   })
   findAll(@Query() query: QueryProductsDto) {
     return this.productsService.findAll(query);
@@ -40,7 +43,10 @@ export class ProductsController {
   @Public()
   @Get('nearby')
   @ApiOperation({
-    summary: 'Products near a geo point (sorted by cook distance)',
+    summary:
+      'Products near a geo point (tags AND, category, price; sorted by cook distance)',
+    description:
+      'Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.',
   })
   nearby(@Query() query: NearbyProductsDto) {
     return this.productsService.findNearby(query);
@@ -58,6 +64,8 @@ export class ProductsController {
   @ApiOperation({
     summary:
       'Create product (cook: own catalog; admin: must pass cookId)',
+    description:
+      'Supports `preparationTimeHours` and optional `tags` (normalized lowercase/hyphenated, max 10).',
   })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
     return this.productsService.create(user, dto);

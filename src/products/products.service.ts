@@ -17,6 +17,7 @@ import {
   QueryProductsDto,
   UpdateProductDto,
 } from './dto/product.dto';
+import { normalizeProductTags, parseTagsQuery } from './product-tags.util';
 import {
   Product,
   ProductAvailability,
@@ -47,11 +48,12 @@ export class ProductsService {
         : undefined,
       cookId: cook._id,
       availability: dto.availability,
-      preparationTimeDays: dto.preparationTimeDays ?? 0,
+      preparationTimeHours: dto.preparationTimeHours ?? 0,
       minimumOrderQuantity:
         dto.availability === ProductAvailability.MadeToOrder
           ? (dto.minimumOrderQuantity ?? 1)
           : 1,
+      tags: normalizeProductTags(dto.tags),
       isAvailable: dto.isAvailable ?? true,
       isActive: true,
     });
@@ -60,31 +62,27 @@ export class ProductsService {
   }
 
   async findAll(query: QueryProductsDto) {
-    const filter: Record<string, unknown> = {
-      isActive: true,
-      // Spec: catalog filters by availability; default hide cook-disabled products
-      isAvailable: query.isAvailable ?? true,
-    };
-
-    if (query.search?.trim()) {
-      filter.name = { $regex: query.search.trim(), $options: 'i' };
-    }
-    if (query.categoryId) {
-      filter.categoryId = new Types.ObjectId(query.categoryId);
-    }
-    if (query.cookId) {
-      filter.cookId = new Types.ObjectId(query.cookId);
-    }
-    if (query.availability) {
-      filter.availability = query.availability;
-    }
-    if (query.minPrice != null || query.maxPrice != null) {
-      filter.price = {
-        ...(query.minPrice != null ? { $gte: query.minPrice } : {}),
-        ...(query.maxPrice != null ? { $lte: query.maxPrice } : {}),
-      };
+    const hasLat = query.lat != null;
+    const hasLng = query.lng != null;
+    if (hasLat !== hasLng) {
+      throw new BadRequestException(
+        'lat and lng must be provided together for proximity filtering',
+      );
     }
 
+    if (hasLat && hasLng) {
+      return this.findNearby({
+        latitude: query.lat!,
+        longitude: query.lng!,
+        radius: query.radius,
+        categoryId: query.categoryId,
+        tags: query.tags,
+        minPrice: query.minPrice,
+        maxPrice: query.maxPrice,
+      });
+    }
+
+    const filter = this.buildCatalogFilter(query);
     const products = await this.productModel.find(filter).limit(50).exec();
     return Promise.all(products.map((p) => this.toResponse(p)));
   }
@@ -120,6 +118,16 @@ export class ProductsService {
       productMatch['products.categoryId'] = new Types.ObjectId(
         query.categoryId,
       );
+    }
+    if (query.minPrice != null || query.maxPrice != null) {
+      productMatch['products.price'] = {
+        ...(query.minPrice != null ? { $gte: query.minPrice } : {}),
+        ...(query.maxPrice != null ? { $lte: query.maxPrice } : {}),
+      };
+    }
+    const tags = parseTagsQuery(query.tags);
+    if (tags.length) {
+      productMatch['products.tags'] = { $all: tags };
     }
 
     const rows = await this.cooksService.aggregateNearbyProducts(
@@ -175,11 +183,14 @@ export class ProductsService {
     if (dto.availability !== undefined) {
       product.availability = dto.availability;
     }
-    if (dto.preparationTimeDays !== undefined) {
-      product.preparationTimeDays = dto.preparationTimeDays;
+    if (dto.preparationTimeHours !== undefined) {
+      product.preparationTimeHours = dto.preparationTimeHours;
     }
     if (dto.minimumOrderQuantity !== undefined) {
       product.minimumOrderQuantity = dto.minimumOrderQuantity;
+    }
+    if (dto.tags !== undefined) {
+      product.tags = normalizeProductTags(dto.tags);
     }
     if (dto.isAvailable !== undefined) product.isAvailable = dto.isAvailable;
     if (dto.isActive !== undefined) product.isActive = dto.isActive;
@@ -195,6 +206,38 @@ export class ProductsService {
     product.isAvailable = false;
     await product.save();
     return { id: product.id, deleted: true };
+  }
+
+  private buildCatalogFilter(query: QueryProductsDto): Record<string, unknown> {
+    const filter: Record<string, unknown> = {
+      isActive: true,
+      isAvailable: query.isAvailable ?? true,
+    };
+
+    if (query.search?.trim()) {
+      filter.name = { $regex: query.search.trim(), $options: 'i' };
+    }
+    if (query.categoryId) {
+      filter.categoryId = new Types.ObjectId(query.categoryId);
+    }
+    if (query.cookId) {
+      filter.cookId = new Types.ObjectId(query.cookId);
+    }
+    if (query.availability) {
+      filter.availability = query.availability;
+    }
+    if (query.minPrice != null || query.maxPrice != null) {
+      filter.price = {
+        ...(query.minPrice != null ? { $gte: query.minPrice } : {}),
+        ...(query.maxPrice != null ? { $lte: query.maxPrice } : {}),
+      };
+    }
+    const tags = parseTagsQuery(query.tags);
+    if (tags.length) {
+      filter.tags = { $all: tags };
+    }
+
+    return filter;
   }
 
   private async resolveCookForCreate(
@@ -332,8 +375,9 @@ export class ProductsService {
       categoryId: obj.categoryId ? String(obj.categoryId) : undefined,
       cookId: String(obj.cookId),
       availability: obj.availability,
-      preparationTimeDays: obj.preparationTimeDays,
+      preparationTimeHours: obj.preparationTimeHours ?? 0,
       minimumOrderQuantity: obj.minimumOrderQuantity,
+      tags: (obj.tags as string[] | undefined) ?? [],
       isAvailable: obj.isAvailable,
       isActive: obj.isActive,
       createdAt: obj.createdAt,
