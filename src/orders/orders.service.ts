@@ -146,7 +146,7 @@ export class OrdersService {
       stockReserved: reserved.length > 0,
     });
 
-    await this.notifyOrderCreated(order, customerId, cook.userId.toString());
+    await this.emitOrderCreated(order, cook.displayName);
 
     return this.toResponse(order);
   }
@@ -371,7 +371,7 @@ export class OrdersService {
     order.status = dto.status;
     await order.save();
 
-    await this.notifyStatusChange(order, dto.status);
+    await this.emitOrderStatusUpdated(order);
     return this.toResponse(order);
   }
 
@@ -382,6 +382,8 @@ export class OrdersService {
     if (order.status === OrderStatus.Cancelled) {
       throw new BadRequestException('Order is cancelled');
     }
+
+    const previousPaymentStatus = order.payment.status;
 
     if (actor.role === Role.Customer) {
       if (order.customerId.toString() !== actor.id) {
@@ -417,8 +419,11 @@ export class OrdersService {
 
     await order.save();
 
-    if (order.payment.status === PaymentStatus.Paid) {
-      await this.notifyPaymentPaid(order);
+    if (
+      dto.status !== undefined &&
+      order.payment.status !== previousPaymentStatus
+    ) {
+      await this.emitPaymentStatusUpdated(order);
     }
 
     return this.toResponse(order);
@@ -440,6 +445,8 @@ export class OrdersService {
         'Payment must be PAID before updating shipping (spec: pay then prepare/ship)',
       );
     }
+
+    const previousShippingStatus = order.shipping.status;
 
     order.shipping.status = dto.status;
     if (dto.carrier !== undefined) order.shipping.carrier = dto.carrier;
@@ -466,14 +473,8 @@ export class OrdersService {
 
     await order.save();
 
-    if (
-      dto.status === ShippingStatus.Shipped ||
-      dto.status === ShippingStatus.InTransit
-    ) {
-      await this.notifyShipped(order);
-    }
-    if (dto.status === ShippingStatus.Delivered) {
-      await this.notifyDelivered(order);
+    if (order.shipping.status !== previousShippingStatus) {
+      await this.emitShippingStatusUpdated(order);
     }
 
     return this.toResponse(order);
@@ -501,7 +502,7 @@ export class OrdersService {
     };
     await order.save();
 
-    await this.notifyCustomerConfirmed(order);
+    await this.emitOrderReceived(order);
     return this.toResponse(order);
   }
 
@@ -533,7 +534,7 @@ export class OrdersService {
     order.payment.status = PaymentStatus.Cancelled;
     await order.save();
 
-    await this.notifyCancelled(order);
+    await this.emitOrderStatusUpdated(order);
     return this.toResponse(order);
   }
 
@@ -637,152 +638,125 @@ export class OrdersService {
     };
   }
 
-  private async notifyOrderCreated(
-    order: OrderDocument,
-    customerUserId: string,
-    cookUserId: string,
-  ) {
+  private async emitOrderCreated(order: OrderDocument, cookDisplayName: string) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyOrderCreated({
+      customer: parties.customer,
+      cook: { ...parties.cook, name: cookDisplayName },
+      ctx: this.orderNotificationContext(order, {
+        cookName: cookDisplayName,
+        customerName: parties.customer.name,
+      }),
+    });
+  }
+
+  private async emitOrderStatusUpdated(order: OrderDocument) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyOrderStatusUpdated({
+      customer: parties.customer,
+      cook: parties.cook,
+      ctx: this.orderNotificationContext(order, {
+        cookName: parties.cookName,
+        customerName: parties.customer.name,
+        status: order.status,
+      }),
+    });
+  }
+
+  private async emitPaymentStatusUpdated(order: OrderDocument) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyPaymentStatusUpdated({
+      customer: parties.customer,
+      cook: parties.cook,
+      ctx: this.orderNotificationContext(order, {
+        cookName: parties.cookName,
+        customerName: parties.customer.name,
+        paymentStatus: order.payment.status,
+      }),
+    });
+  }
+
+  private async emitShippingStatusUpdated(order: OrderDocument) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyShippingStatusUpdated({
+      customer: parties.customer,
+      cook: parties.cook,
+      ctx: this.orderNotificationContext(order, {
+        cookName: parties.cookName,
+        customerName: parties.customer.name,
+        shippingStatus: order.shipping.status,
+        carrier: order.shipping.carrier,
+        trackingNumber: order.shipping.trackingNumber,
+      }),
+    });
+  }
+
+  private async emitOrderReceived(order: OrderDocument) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyOrderReceived({
+      customer: parties.customer,
+      cook: parties.cook,
+      ctx: this.orderNotificationContext(order, {
+        cookName: parties.cookName,
+        customerName: parties.customer.name,
+      }),
+    });
+  }
+
+  private async resolveOrderParties(order: OrderDocument) {
+    const cook = await this.cooksService.getById(order.cookId.toString());
+    if (!cook) return null;
     const [customer, cookUser] = await Promise.all([
-      this.usersService.findById(customerUserId),
-      this.usersService.findById(cookUserId),
+      this.usersService.findById(order.customerId.toString()),
+      this.usersService.findById(cook.userId.toString()),
     ]);
-
-    const subject = `Order ${order.orderNumber} created`;
-    const html = `<p>Your order <strong>${order.orderNumber}</strong> was created. Total: ${order.totals.total}.</p>`;
-
-    if (customer) {
-      await this.notificationsService.notifyUser({
+    if (!customer || !cookUser) return null;
+    return {
+      customer: {
         userId: customer.id,
         email: customer.email,
-        orderId: order.id,
-        event: 'order.created',
-        subject,
-        html,
-      });
-    }
-    if (cookUser) {
-      await this.notificationsService.notifyUser({
+        name: customer.name,
+      },
+      cook: {
         userId: cookUser.id,
         email: cookUser.email,
-        orderId: order.id,
-        event: 'order.created',
-        subject: `New order ${order.orderNumber}`,
-        html: `<p>New order <strong>${order.orderNumber}</strong> from a customer. Total: ${order.totals.total}.</p>`,
-      });
-    }
-  }
-
-  private async notifyStatusChange(order: OrderDocument, status: OrderStatus) {
-    const customer = await this.usersService.findById(
-      order.customerId.toString(),
-    );
-    if (!customer) return;
-
-    const map: Partial<
-      Record<OrderStatus, { event: 'order.confirmed'; subject: string; html: string }>
-    > = {
-      [OrderStatus.Confirmed]: {
-        event: 'order.confirmed',
-        subject: `Order ${order.orderNumber} confirmed`,
-        html: `<p>The cook accepted order <strong>${order.orderNumber}</strong>.</p>`,
+        name: cook.displayName,
       },
+      cookName: cook.displayName,
     };
-
-    if (status === OrderStatus.Confirmed && map[status]) {
-      const m = map[status]!;
-      await this.notificationsService.notifyUser({
-        userId: customer.id,
-        email: customer.email,
-        orderId: order.id,
-        event: m.event,
-        subject: m.subject,
-        html: m.html,
-      });
-    }
-
-    if (status === OrderStatus.Shipped) {
-      await this.notifyShipped(order);
-    }
-    if (status === OrderStatus.Delivered) {
-      await this.notifyDelivered(order);
-    }
   }
 
-  private async notifyPaymentPaid(order: OrderDocument) {
-    const customer = await this.usersService.findById(
-      order.customerId.toString(),
-    );
-    if (!customer) return;
-    await this.notificationsService.notifyUser({
-      userId: customer.id,
-      email: customer.email,
+  private orderNotificationContext(
+    order: OrderDocument,
+    extra: {
+      cookName: string;
+      customerName: string;
+      status?: string;
+      paymentStatus?: string;
+      shippingStatus?: string;
+      carrier?: string;
+      trackingNumber?: string;
+    },
+  ) {
+    return {
       orderId: order.id,
-      event: 'order.payment_paid',
-      subject: `Payment confirmed for ${order.orderNumber}`,
-      html: `<p>Payment for order <strong>${order.orderNumber}</strong> was confirmed.</p>`,
-    });
-  }
-
-  private async notifyShipped(order: OrderDocument) {
-    const customer = await this.usersService.findById(
-      order.customerId.toString(),
-    );
-    if (!customer) return;
-    const tracking = order.shipping.trackingNumber
-      ? `<p>Tracking: ${order.shipping.carrier ?? ''} ${order.shipping.trackingNumber}</p>`
-      : '';
-    await this.notificationsService.notifyUser({
-      userId: customer.id,
-      email: customer.email,
-      orderId: order.id,
-      event: 'order.shipped',
-      subject: `Order ${order.orderNumber} shipped`,
-      html: `<p>Order <strong>${order.orderNumber}</strong> was shipped.</p>${tracking}`,
-    });
-  }
-
-  private async notifyDelivered(order: OrderDocument) {
-    const customer = await this.usersService.findById(
-      order.customerId.toString(),
-    );
-    if (!customer) return;
-    await this.notificationsService.notifyUser({
-      userId: customer.id,
-      email: customer.email,
-      orderId: order.id,
-      event: 'order.delivered',
-      subject: `Order ${order.orderNumber} delivered`,
-      html: `<p>Order <strong>${order.orderNumber}</strong> was marked as delivered. Please confirm reception.</p>`,
-    });
-  }
-
-  private async notifyCancelled(order: OrderDocument) {
-    const customer = await this.usersService.findById(
-      order.customerId.toString(),
-    );
-    if (!customer) return;
-    await this.notificationsService.notifyUser({
-      userId: customer.id,
-      email: customer.email,
-      orderId: order.id,
-      event: 'order.cancelled',
-      subject: `Order ${order.orderNumber} cancelled`,
-      html: `<p>Order <strong>${order.orderNumber}</strong> was cancelled.</p>`,
-    });
-  }
-
-  private async notifyCustomerConfirmed(order: OrderDocument) {
-    const cook = await this.cooksService.getById(order.cookId.toString());
-    if (!cook) return;
-    const cookUser = await this.usersService.findById(cook.userId.toString());
-    if (!cookUser) return;
-    await this.notificationsService.notifyUser({
-      userId: cookUser.id,
-      email: cookUser.email,
-      orderId: order.id,
-      event: 'order.customer_confirmed',
-      subject: `Reception confirmed for ${order.orderNumber}`,
-      html: `<p>The customer confirmed reception of order <strong>${order.orderNumber}</strong>.</p>`,
-    });
+      orderNumber: order.orderNumber,
+      cookName: extra.cookName,
+      customerName: extra.customerName,
+      itemsHtml: order.items
+        .map((i) => `<li>${i.name} × ${i.quantity}</li>`)
+        .join(''),
+      totalFormatted: `$${order.totals.total.toLocaleString('es-CO')}`,
+      status: extra.status,
+      paymentStatus: extra.paymentStatus,
+      shippingStatus: extra.shippingStatus,
+      carrier: extra.carrier,
+      trackingNumber: extra.trackingNumber,
+    };
   }
 }

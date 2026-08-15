@@ -7,11 +7,8 @@ import {
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import { hashPassword } from '../common/crypto/password-hasher';
+import { NotificationsService } from '../notifications/notifications.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
-import {
-  EMAIL_SENDER,
-  EmailSender,
-} from '../notifications/email/email-sender.interface';
 import { UsersService } from '../users/users.service';
 
 const OTP_TTL_SECONDS = 600; // 10 minutes
@@ -30,7 +27,7 @@ export class PasswordRecoveryService {
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    @Inject(EMAIL_SENDER) private readonly emailSender: EmailSender,
+    private readonly notificationsService: NotificationsService,
     private readonly usersService: UsersService,
   ) {}
 
@@ -52,7 +49,6 @@ export class PasswordRecoveryService {
       await this.redis.expire(rateKey, REQUEST_WINDOW_SECONDS);
     }
     if (requests > MAX_REQUESTS_PER_WINDOW) {
-      // Still generic — do not reveal rate limit details that confirm the account
       return generic;
     }
 
@@ -68,17 +64,14 @@ export class PasswordRecoveryService {
       OTP_TTL_SECONDS,
     );
 
-    try {
-      await this.emailSender.send({
-        to: user.email,
-        subject: 'Password recovery code',
-        html: `<p>Your recovery code is <strong>${otp}</strong>.</p><p>It expires in 10 minutes.</p>`,
-        text: `Your recovery code is ${otp}. It expires in 10 minutes.`,
-      });
-    } catch (err) {
-      this.logger.error(
-        `Failed to send recovery OTP: ${err instanceof Error ? err.message : err}`,
-      );
+    const sent = await this.notificationsService.notifyPasswordRecovery({
+      userId: user.id,
+      email: user.email,
+      otp,
+    });
+
+    if (!sent) {
+      this.logger.error(`Failed to send recovery OTP to ${user.email}`);
       await this.redis.del(recoveryKey);
     }
 

@@ -5,6 +5,7 @@ import {
 import { CategoriesService } from '../categories/categories.service';
 import { CooksService } from '../cooks/cooks.service';
 import { Role } from '../common/enums/role.enum';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrdersService } from '../orders/orders.service';
 import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
@@ -17,6 +18,7 @@ export class AdminService {
     private readonly productsService: ProductsService,
     private readonly ordersService: OrdersService,
     private readonly categoriesService: CategoriesService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getStats() {
@@ -64,6 +66,16 @@ export class AdminService {
       throw new NotFoundException('Customer not found');
     }
     const updated = await this.usersService.setActive(userId, isActive);
+
+    await this.notificationsService
+      .notifyUserStatusUpdated({
+        userId: updated!.id,
+        email: updated!.email,
+        userName: updated!.name,
+        isActive,
+      })
+      .catch(() => undefined);
+
     return {
       id: updated!.id,
       email: updated!.email,
@@ -77,16 +89,44 @@ export class AdminService {
     return this.cooksService.listAllForAdmin();
   }
 
-  setCookActive(cookId: string, isActive: boolean) {
-    return this.cooksService.setActive(cookId, isActive);
+  async setCookActive(cookId: string, isActive: boolean) {
+    const cook = await this.cooksService.setActive(cookId, isActive);
+    const cookUser = await this.usersService.findById(cook.userId);
+    if (cookUser) {
+      await this.notificationsService
+        .notifyUserStatusUpdated({
+          userId: cookUser.id,
+          email: cookUser.email,
+          userName: cookUser.name,
+          isActive,
+        })
+        .catch(() => undefined);
+    }
+    return cook;
   }
 
   listProducts() {
     return this.productsService.listAllForAdmin();
   }
 
-  setProductActive(productId: string, isActive: boolean) {
-    return this.productsService.setActive(productId, isActive);
+  async setProductActive(productId: string, isActive: boolean) {
+    const product = await this.productsService.setActive(productId, isActive);
+    const cook = await this.cooksService.getById(String(product.cookId));
+    if (cook) {
+      const cookUser = await this.usersService.findById(cook.userId.toString());
+      if (cookUser) {
+        await this.notificationsService
+          .notifyProductStatusUpdated({
+            cookUserId: cookUser.id,
+            cookEmail: cookUser.email,
+            productId: String(product.id),
+            productName: String(product.name),
+            isActive,
+          })
+          .catch(() => undefined);
+      }
+    }
+    return product;
   }
 
   listOrders() {

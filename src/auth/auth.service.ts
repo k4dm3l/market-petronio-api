@@ -15,6 +15,7 @@ import {
 } from '../common/crypto/password-hasher';
 import { UsersService } from '../users/users.service';
 import { UserDocument } from '../users/schemas/user.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -40,6 +42,14 @@ export class AuthService {
       name: dto.name,
       role: Role.Customer,
     });
+
+    await this.notificationsService
+      .notifyUserRegistered({
+        userId: user.id,
+        email: user.email,
+        userName: user.name,
+      })
+      .catch(() => undefined);
 
     return this.buildAuthResponse(user);
   }
@@ -59,6 +69,15 @@ export class AuthService {
     }
 
     const updated = await this.usersService.updateRole(userId, Role.Admin);
+
+    await this.notificationsService
+      .notifyRoleUpdatedToAdmin({
+        userId: updated!.id,
+        email: updated!.email,
+        userName: updated!.name,
+      })
+      .catch(() => undefined);
+
     return {
       id: updated!.id,
       email: updated!.email,

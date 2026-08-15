@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{title}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f1ec;font-family:Georgia,'Times New Roman',serif;color:#1c1917;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f1ec;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;">
+          <tr>
+            <td style="padding:28px 28px 12px;border-bottom:3px solid #0f766e;">
+              <p style="margin:0;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:#0f766e;">Market Petronio</p>
+              <h1 style="margin:12px 0 0;font-size:24px;font-weight:normal;color:#1c1917;">{{title}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 28px;font-size:16px;line-height:1.6;color:#44403c;">
+              {{content}}
+            </td>
+          </tr>
+          {{#cta}}
+          <tr>
+            <td style="padding:0 28px 28px;">
+              <a href="{{ctaUrl}}" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 20px;font-size:14px;letter-spacing:0.04em;">{{ctaLabel}}</a>
+            </td>
+          </tr>
+          {{/cta}}
+          <tr>
+            <td style="padding:20px 28px;border-top:1px solid #e7e5e4;font-size:12px;line-height:1.5;color:#78716c;">
+              <p style="margin:0;">Market Petronio — comida tradicional del Pacífico colombiano.</p>
+              <p style="margin:8px 0 0;">Si no esperabas este mensaje, puedes ignorarlo.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

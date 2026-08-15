@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EMAIL_SENDER } from './email/email-sender.interface';
+import { EmailTemplatesService } from './email/email-templates.service';
 import { NoOpEmailAdapter } from './email/noop-email.adapter';
 import { ResendEmailAdapter } from './email/resend-email.adapter';
 import { NotificationsController } from './notifications.controller';
@@ -21,6 +22,7 @@ import {
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
+    EmailTemplatesService,
     {
       provide: EMAIL_SENDER,
       inject: [ConfigService],
@@ -33,7 +35,6 @@ import {
           !apiKey.includes('xxxx') &&
           apiKey.startsWith('re_');
 
-        // Swap provider here later (SendGrid, SES, etc.) by returning another EmailSender.
         return looksConfigured
           ? new ResendEmailAdapter(apiKey, from)
           : new NoOpEmailAdapter();

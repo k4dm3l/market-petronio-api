@@ -22,7 +22,10 @@ export function buildOpenApiConfig() {
     .addTag('cooks', 'Cook profiles and dashboard')
     .addTag('categories', 'Product categories')
     .addTag('admin', 'Admin statistics and moderation')
-    .addTag('notifications', 'Notification inbox')
+    .addTag(
+      'notifications',
+      'Transactional email inbox (centralized templates, spec 007)',
+    )
     .addTag('health', 'Health checks')
     .build();
 }

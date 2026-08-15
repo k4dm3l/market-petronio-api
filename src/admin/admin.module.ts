@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CategoriesModule } from '../categories/categories.module';
 import { CooksModule } from '../cooks/cooks.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { OrdersModule } from '../orders/orders.module';
 import { ProductsModule } from '../products/products.module';
 import { UsersModule } from '../users/users.module';
@@ -14,6 +15,7 @@ import { AdminService } from './admin.service';
     ProductsModule,
     OrdersModule,
     CategoriesModule,
+    NotificationsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

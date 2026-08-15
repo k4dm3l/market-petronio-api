@@ -17,5 +17,6 @@ export const validationSchema = Joi.object({
   CLOUDINARY_API_SECRET: Joi.string().optional(),
   RESEND_API_KEY: Joi.string().optional(),
   EMAIL_FROM: Joi.string().optional(),
+  PLATFORM_URL: Joi.string().uri().default('http://localhost:5173'),
   REDIS_URL: Joi.string().default('redis://127.0.0.1:6379'),
 });
