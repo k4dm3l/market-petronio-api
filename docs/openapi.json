@@ -1,0 +1,2749 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Register a customer account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Login and receive access + refresh tokens",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Refresh access token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/password-recovery/request": {
+      "post": {
+        "description": "Sends a 6-digit OTP to the registered email when the account exists.\n\n**Security**\n- Response is always the same generic message (no email enumeration).\n- OTP is stored hashed in Redis with a **10-minute** TTL.\n- Max **3** recovery requests per email every **15 minutes**.\n\n**Flow**\n1. Call this endpoint with the account email.\n2. User receives the OTP by email.\n3. Call `POST /auth/password-recovery/reset` with OTP + new password.",
+        "operationId": "AuthController_requestPasswordRecovery",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordRecoveryRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generic acknowledgment (sent whether or not the email exists)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordRecoveryRequestResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid email format"
+          }
+        },
+        "summary": "Request password recovery OTP",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/password-recovery/reset": {
+      "post": {
+        "description": "Validates the OTP from Redis and updates the password (Argon2id).\n\n**Validations**\n- Email must belong to an active user with a pending OTP\n- `newPassword` === `confirmPassword`\n- Password rules: min 8 chars, uppercase, lowercase, number, special character\n- OTP not expired (10 min) and not over attempt limit (**5** tries)\n\nOn success the Redis recovery key is deleted so the OTP cannot be reused.",
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordRecoveryResetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordRecoveryResetResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid/expired OTP, passwords do not match, weak password, or too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "statusCode": 400,
+                    "message": "Invalid or expired recovery code",
+                    "error": "Bad Request"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reset password with email OTP",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/promote-admin": {
+      "post": {
+        "operationId": "AuthController_promoteAdmin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteAdminDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Missing or invalid Bearer token"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Promote an existing user to admin (admin only)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "description": "Includes `deliveryInformation` (location GeoJSON Point, address, optional notes) when set.",
+        "operationId": "UsersController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user profile",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/me/delivery-information": {
+      "patch": {
+        "description": "Single default address for MVP. Used when creating orders with `delivery.source = CUSTOMER_PROFILE`.",
+        "operationId": "UsersController_upsertDelivery",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertDeliveryInformationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set or replace default delivery information",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "description": "Spec §12: emails on order created/confirmed/paid/shipped/delivered. Records are stored for history.",
+        "operationId": "NotificationsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List email notifications for the current user (MVP inbox for order events)",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/cooks": {
+      "get": {
+        "operationId": "CooksController_findAll",
+        "parameters": [
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 3.8833,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": -77.0319,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radius",
+            "required": false,
+            "in": "query",
+            "description": "Search radius in meters",
+            "schema": {
+              "default": 10000,
+              "example": 10000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List active cooks (optional proximity: lat, lng, radius meters)",
+        "tags": [
+          "cooks"
+        ]
+      },
+      "post": {
+        "operationId": "CooksController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create cook profile for an existing user (admin only)",
+        "tags": [
+          "cooks"
+        ]
+      }
+    },
+    "/api/cooks/me/dashboard": {
+      "get": {
+        "operationId": "CooksController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cook dashboard: pending/preparing/shipped counts, monthly sales, product stock",
+        "tags": [
+          "cooks"
+        ]
+      }
+    },
+    "/api/cooks/{id}": {
+      "get": {
+        "operationId": "CooksController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get cook profile (exact coordinates only for owner/admin; public sees city label)",
+        "tags": [
+          "cooks"
+        ]
+      },
+      "patch": {
+        "operationId": "CooksController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update cook profile (owner or admin; isActive is admin-only)",
+        "tags": [
+          "cooks"
+        ]
+      }
+    },
+    "/api/products": {
+      "get": {
+        "description": "Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity.",
+        "operationId": "ProductsController_findAll",
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive name search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cookId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "isAvailable",
+            "required": false,
+            "in": "query",
+            "description": "Defaults to true (only available products in catalog)",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "availability",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "available",
+                "made_to_order"
+              ]
+            }
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated tags; AND semantics (product must include all). Normalized lowercase.",
+            "schema": {
+              "example": "seafood,shrimp",
+              "type": "string"
+            }
+          },
+          {
+            "name": "lat",
+            "required": false,
+            "in": "query",
+            "description": "With lng+radius: proximity filter on GET /products",
+            "schema": {
+              "example": 3.8833,
+              "type": "number"
+            }
+          },
+          {
+            "name": "lng",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": -77.0319,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radius",
+            "required": false,
+            "in": "query",
+            "description": "Radius in meters",
+            "schema": {
+              "example": 10000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List products (search, category, cook, price, availability, tags AND, optional lat/lng/radius)",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "description": "Supports `preparationTimeHours` and optional `tags` (normalized lowercase/hyphenated, max 10).",
+        "operationId": "ProductsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create product (cook: own catalog; admin: must pass cookId)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/nearby": {
+      "get": {
+        "description": "Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.",
+        "operationId": "ProductsController_nearby",
+        "parameters": [
+          {
+            "name": "latitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": 3.8833,
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": -77.0319,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radius",
+            "required": false,
+            "in": "query",
+            "description": "Radius in meters",
+            "schema": {
+              "default": 10000,
+              "example": 10000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated tags; AND semantics",
+            "schema": {
+              "example": "seafood,shrimp",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Products near a geo point (tags AND, category, price; sorted by cook distance)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "operationId": "ProductsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get product by id",
+        "tags": [
+          "products"
+        ]
+      },
+      "patch": {
+        "operationId": "ProductsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update product (owner cook or admin; isActive admin-only)",
+        "tags": [
+          "products"
+        ]
+      },
+      "delete": {
+        "operationId": "ProductsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Soft-delete product (owner cook or admin)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "operationId": "CategoriesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List active categories",
+        "tags": [
+          "categories"
+        ]
+      },
+      "post": {
+        "operationId": "CategoriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create category (admin)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/api/categories/all": {
+      "get": {
+        "operationId": "CategoriesController_findAllAdmin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all categories including inactive (admin)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/api/categories/{id}": {
+      "get": {
+        "operationId": "CategoriesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Get active category by id",
+        "tags": [
+          "categories"
+        ]
+      },
+      "patch": {
+        "operationId": "CategoriesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update / activate-deactivate category (admin)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "description": "Single-cook order. Stock is reserved for `available` products.\n\n**Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):\n\n- `source: CUSTOMER_PROFILE` — uses `PATCH /users/me/delivery-information`\n- `source: CUSTOM` — requires `location` (GeoJSON Point `[lng, lat]`) and `address`; `additionalInformation` optional",
+        "operationId": "OrdersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderDto"
+              },
+              "examples": {
+                "customerProfile": {
+                  "summary": "Use saved customer delivery",
+                  "value": {
+                    "cookId": "507f1f77bcf86cd799439011",
+                    "items": [
+                      {
+                        "productId": "507f1f77bcf86cd799439012",
+                        "quantity": 2
+                      }
+                    ],
+                    "delivery": {
+                      "source": "CUSTOMER_PROFILE"
+                    },
+                    "paymentMethod": "nequi"
+                  }
+                },
+                "customDelivery": {
+                  "summary": "Custom address for this order",
+                  "value": {
+                    "cookId": "507f1f77bcf86cd799439011",
+                    "items": [
+                      {
+                        "productId": "507f1f77bcf86cd799439012",
+                        "quantity": 2
+                      }
+                    ],
+                    "delivery": {
+                      "source": "CUSTOM",
+                      "location": {
+                        "type": "Point",
+                        "coordinates": [
+                          -77.0319,
+                          3.8833
+                        ]
+                      },
+                      "address": "Calle 5 #10-20",
+                      "additionalInformation": "Casa azul, next to the bakery"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created order including delivery snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create order with delivery snapshot",
+        "tags": [
+          "orders"
+        ]
+      },
+      "get": {
+        "description": "**Customers (spec 003)** — order history scoped to the JWT user id (never pass `customerId`).\nSupports cursor pagination: `?limit=20&cursor=...`.\n\nResponse for customers:\n`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }`\n\n**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in `data`).",
+        "operationId": "OrdersController_findAll",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (max 50)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page (do not pass customerId)",
+            "schema": {
+              "example": "eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated order list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerOrdersListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Bearer token"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List orders for the authenticated user",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get order by id",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/status": {
+      "patch": {
+        "operationId": "OrdersController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Advance order status (cook/admin) or cancel PENDING/CONFIRMED (customer/cook/admin)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/payment": {
+      "patch": {
+        "operationId": "OrdersController_updatePayment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update payment (customer reports paid; cook marks PAID)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/shipping": {
+      "patch": {
+        "operationId": "OrdersController_updateShipping",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShippingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update shipping status / tracking (cook/admin)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/confirm-reception": {
+      "post": {
+        "operationId": "OrdersController_confirmReception",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Customer confirms order reception",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "operationId": "AdminController_stats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Basic dashboard stats (cooks, customers, products, orders, sales)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/customers": {
+      "get": {
+        "operationId": "AdminController_listCustomers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List customers",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/customers/{id}": {
+      "patch": {
+        "operationId": "AdminController_setCustomerActive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Activate / deactivate a customer",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/cooks": {
+      "get": {
+        "operationId": "AdminController_listCooks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all cooks (including inactive)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/cooks/{id}": {
+      "patch": {
+        "operationId": "AdminController_setCookActive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Activate / deactivate a cook",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/products": {
+      "get": {
+        "operationId": "AdminController_listProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Review all products (including inactive)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/products/{id}": {
+      "patch": {
+        "operationId": "AdminController_setProductActive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Activate / deactivate a product",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/orders": {
+      "get": {
+        "operationId": "AdminController_listOrders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Review all orders",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/categories": {
+      "get": {
+        "operationId": "AdminController_listCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all categories (including inactive)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Market Petronio API",
+    "description": "Marketplace API for cooks and customers (Buonaventura / Pacific region).",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Registration, login, token refresh, and password recovery"
+    },
+    {
+      "name": "users",
+      "description": "Customer profile and default delivery information"
+    },
+    {
+      "name": "products",
+      "description": "Catalog: tags, preparationTimeHours, filters, nearby search"
+    },
+    {
+      "name": "orders",
+      "description": "Order lifecycle including delivery snapshot on create (spec 005)"
+    },
+    {
+      "name": "cooks",
+      "description": "Cook profiles and dashboard"
+    },
+    {
+      "name": "categories",
+      "description": "Product categories"
+    },
+    {
+      "name": "admin",
+      "description": "Admin statistics and moderation"
+    },
+    {
+      "name": "notifications",
+      "description": "Notification inbox"
+    },
+    {
+      "name": "health",
+      "description": "Health checks"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "juan@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "Juan Pérez"
+          },
+          "password": {
+            "type": "string",
+            "example": "Password123!",
+            "description": "Min 8 chars, uppercase, lowercase, number, and special character"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "juan@example.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "Password123!"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "PasswordRecoveryRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "Registered account email that will receive the 6-digit OTP",
+            "format": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "PasswordRecoveryRequestResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "If an account exists with this email, a recovery code has been sent.",
+            "description": "Always the same generic message (does not reveal whether the email is registered)."
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "PasswordRecoveryResetDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "Same email used in the recovery request",
+            "format": "email"
+          },
+          "otp": {
+            "type": "string",
+            "example": "482913",
+            "description": "6-digit OTP received by email (valid for 10 minutes)",
+            "minLength": 6,
+            "maxLength": 6
+          },
+          "newPassword": {
+            "type": "string",
+            "example": "Password123!",
+            "description": "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+            "minLength": 8
+          },
+          "confirmPassword": {
+            "type": "string",
+            "example": "Password123!",
+            "description": "Must match newPassword exactly",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "email",
+          "otp",
+          "newPassword",
+          "confirmPassword"
+        ]
+      },
+      "PasswordRecoveryResetResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Password updated successfully"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "PromoteAdminDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User id to promote to admin",
+            "example": "507f1f77bcf86cd799439011"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "DeliveryGeoPointDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "Point"
+            ],
+            "example": "Point"
+          },
+          "coordinates": {
+            "example": [
+              -77.0319,
+              3.8833
+            ],
+            "description": "[longitude (-180..180), latitude (-90..90)]",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ]
+      },
+      "DeliveryInformationResponseDto": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/DeliveryGeoPointDto"
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20"
+          },
+          "additionalInformation": {
+            "type": "string",
+            "example": "Casa azul"
+          }
+        },
+        "required": [
+          "location",
+          "address"
+        ]
+      },
+      "UserMeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "example": "customer@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "María"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "cook",
+              "admin"
+            ],
+            "example": "customer"
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "deliveryInformation": {
+            "nullable": true,
+            "description": "Default delivery info used with orders source=CUSTOMER_PROFILE",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryInformationResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "isActive"
+        ]
+      },
+      "UpsertDeliveryInformationDto": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/DeliveryGeoPointDto"
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20"
+          },
+          "additionalInformation": {
+            "type": "string",
+            "example": "Casa azul, next to the bakery"
+          }
+        },
+        "required": [
+          "location",
+          "address"
+        ]
+      },
+      "PaymentMethodDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "nequi",
+              "daviplata",
+              "bank_transfer"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "example": "Nequi 3001234567"
+          },
+          "isEnabled": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "type",
+          "details"
+        ]
+      },
+      "CreateCookDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Existing user id that will own this cook profile",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "María Rodríguez"
+          },
+          "bio": {
+            "type": "string",
+            "example": "Traditional cook from the Pacific region."
+          },
+          "specialties": {
+            "example": [
+              "Seafood",
+              "Coconut candies",
+              "Tamales"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publicLocation": {
+            "type": "string",
+            "example": "Buenaventura, Valle del Cauca"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude (GeoJSON order)",
+            "example": -77.0319
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitude (GeoJSON order)",
+            "example": 3.8833
+          },
+          "paymentMethods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodDto"
+            }
+          },
+          "contactWhatsApp": {
+            "type": "string",
+            "example": "3001234567"
+          }
+        },
+        "required": [
+          "userId",
+          "displayName",
+          "publicLocation",
+          "longitude",
+          "latitude"
+        ]
+      },
+      "UpdateCookDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "specialties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publicLocation": {
+            "type": "string"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "paymentMethods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodDto"
+            }
+          },
+          "contactWhatsApp": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Admin only"
+          }
+        }
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Encocado de camarón"
+          },
+          "description": {
+            "type": "string",
+            "example": "Traditional Pacific shrimp stew"
+          },
+          "images": {
+            "example": [
+              "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "price": {
+            "type": "number",
+            "example": 35000
+          },
+          "stock": {
+            "type": "number",
+            "example": 8,
+            "description": "Stock units (used when availability=available)"
+          },
+          "categoryId": {
+            "type": "string",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "cookId": {
+            "type": "string",
+            "description": "Required for admin; ignored for cooks (uses their profile)",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "made_to_order"
+            ],
+            "example": "available"
+          },
+          "preparationTimeHours": {
+            "type": "number",
+            "example": 48,
+            "description": "Preparation time in hours (e.g. 48 = 2 days)"
+          },
+          "minimumOrderQuantity": {
+            "type": "number",
+            "example": 5,
+            "description": "Required minimum when made_to_order"
+          },
+          "tags": {
+            "example": [
+              "seafood",
+              "shrimp",
+              "traditional",
+              "pacific-food"
+            ],
+            "description": "Normalized to lowercase/hyphenated; max 10; unique",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isAvailable": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "price",
+          "availability"
+        ]
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "price": {
+            "type": "number"
+          },
+          "stock": {
+            "type": "number"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "made_to_order"
+            ]
+          },
+          "preparationTimeHours": {
+            "type": "number",
+            "example": 24,
+            "description": "Preparation time in hours"
+          },
+          "minimumOrderQuantity": {
+            "type": "number"
+          },
+          "tags": {
+            "example": [
+              "seafood",
+              "shrimp"
+            ],
+            "description": "Normalized to lowercase/hyphenated; max 10; unique",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isAvailable": {
+            "type": "boolean"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Admin soft-deactivate"
+          }
+        }
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Prepared meals"
+          },
+          "description": {
+            "type": "string",
+            "example": "Ready-to-eat traditional dishes"
+          },
+          "image": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/category.jpg"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Admin activate/deactivate"
+          }
+        }
+      },
+      "CreateOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "productId",
+          "quantity"
+        ]
+      },
+      "CreateOrderDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "CUSTOMER_PROFILE",
+              "CUSTOM"
+            ],
+            "example": "CUSTOMER_PROFILE",
+            "description": "CUSTOMER_PROFILE copies saved user delivery; CUSTOM requires location + address"
+          },
+          "location": {
+            "description": "Required when source is CUSTOM. GeoJSON Point [longitude, latitude]",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryGeoPointDto"
+              }
+            ]
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20",
+            "description": "Required when source is CUSTOM (human-readable address)"
+          },
+          "additionalInformation": {
+            "type": "string",
+            "example": "Casa azul, next to the bakery",
+            "description": "Optional notes; for CUSTOM only (profile path uses saved notes)"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "cookId": {
+            "type": "string",
+            "description": "Single-cook order (MVP)"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItemDto"
+            }
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/CreateOrderDeliveryDto"
+          },
+          "shippingCost": {
+            "type": "number",
+            "example": 10000,
+            "default": 0
+          },
+          "paymentMethod": {
+            "type": "string",
+            "example": "nequi"
+          }
+        },
+        "required": [
+          "cookId",
+          "items",
+          "delivery"
+        ]
+      },
+      "OrderItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "507f1f77bcf86cd799439012"
+          },
+          "name": {
+            "type": "string",
+            "example": "Encocado de camarón"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 2
+          },
+          "unitPrice": {
+            "type": "number",
+            "example": 35000
+          },
+          "total": {
+            "type": "number",
+            "example": 70000
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "quantity",
+          "unitPrice",
+          "total"
+        ]
+      },
+      "OrderTotalsResponseDto": {
+        "type": "object",
+        "properties": {
+          "subtotal": {
+            "type": "number",
+            "example": 70000
+          },
+          "shipping": {
+            "type": "number",
+            "example": 10000
+          },
+          "total": {
+            "type": "number",
+            "example": 80000
+          }
+        },
+        "required": [
+          "subtotal",
+          "shipping",
+          "total"
+        ]
+      },
+      "OrderDeliveryResponseDto": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "description": "Snapshot of delivery coordinates at order creation",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryGeoPointDto"
+              }
+            ]
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20"
+          },
+          "additionalInformation": {
+            "type": "string",
+            "example": "Casa azul, next to the bakery",
+            "nullable": true
+          }
+        },
+        "required": [
+          "location",
+          "address"
+        ]
+      },
+      "OrderPaymentResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PAYMENT_INSTRUCTIONS",
+              "PAID",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "example": "PENDING"
+          },
+          "method": {
+            "type": "string",
+            "example": "nequi"
+          },
+          "customerReportedPaid": {
+            "type": "boolean",
+            "example": false
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-15T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "status",
+          "customerReportedPaid"
+        ]
+      },
+      "OrderShippingResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PREPARING",
+              "READY_TO_SHIP",
+              "SHIPPED",
+              "IN_TRANSIT",
+              "DELIVERED"
+            ],
+            "example": "PENDING"
+          },
+          "carrier": {
+            "type": "string",
+            "example": "Servientrega"
+          },
+          "trackingNumber": {
+            "type": "string",
+            "example": "123456789"
+          },
+          "shippedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deliveredAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CustomerConfirmationResponseDto": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "example": false
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed"
+        ]
+      },
+      "OrderResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORDER-000001"
+          },
+          "customerId": {
+            "type": "string"
+          },
+          "cookId": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponseDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/OrderTotalsResponseDto"
+          },
+          "delivery": {
+            "description": "Delivery address/location copied at create time; not linked to profile updates",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderDeliveryResponseDto"
+              }
+            ]
+          },
+          "payment": {
+            "$ref": "#/components/schemas/OrderPaymentResponseDto"
+          },
+          "shipping": {
+            "$ref": "#/components/schemas/OrderShippingResponseDto"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "PREPARING",
+              "READY_TO_SHIP",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "example": "PENDING"
+          },
+          "customerConfirmation": {
+            "$ref": "#/components/schemas/CustomerConfirmationResponseDto"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-15T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-15T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "orderNumber",
+          "customerId",
+          "cookId",
+          "items",
+          "totals",
+          "delivery",
+          "payment",
+          "shipping",
+          "status",
+          "customerConfirmation",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CustomerOrderHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "PREPARING",
+              "READY_TO_SHIP",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELLED"
+            ],
+            "example": "SHIPPED"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PAYMENT_INSTRUCTIONS",
+              "PAID",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "example": "PAID"
+          },
+          "total": {
+            "type": "number",
+            "example": 75000
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-15T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "paymentStatus",
+          "total",
+          "createdAt"
+        ]
+      },
+      "OrdersPaginationDto": {
+        "type": "object",
+        "properties": {
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "example": "eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "hasMore"
+        ]
+      },
+      "CustomerOrdersListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerOrderHistoryItemDto"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/OrdersPaginationDto"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "PREPARING",
+              "READY_TO_SHIP",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELLED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "UpdatePaymentDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PAYMENT_INSTRUCTIONS",
+              "PAID",
+              "FAILED",
+              "CANCELLED"
+            ]
+          },
+          "method": {
+            "type": "string"
+          },
+          "customerReportedPaid": {
+            "type": "boolean",
+            "description": "Customer reports external payment was made"
+          }
+        }
+      },
+      "UpdateShippingDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PREPARING",
+              "READY_TO_SHIP",
+              "SHIPPED",
+              "IN_TRANSIT",
+              "DELIVERED"
+            ]
+          },
+          "carrier": {
+            "type": "string",
+            "example": "Servientrega"
+          },
+          "trackingNumber": {
+            "type": "string",
+            "example": "123456789"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "SetActiveDto": {
+        "type": "object",
+        "properties": {
+          "isActive": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "isActive"
+        ]
+      }
+    }
+  }
+}
