@@ -191,7 +191,7 @@
     },
     "/api/users/me": {
       "get": {
-        "description": "Includes `deliveryInformation` (location GeoJSON Point, address, optional notes) when set.",
+        "description": "Includes `image` (`{ url }`) and `deliveryInformation` when set.",
         "operationId": "UsersController_getMe",
         "parameters": [],
         "responses": {
@@ -250,6 +250,80 @@
           }
         ],
         "summary": "Set or replace default delivery information",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/me/image": {
+      "post": {
+        "description": "multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Replaces any existing profile image and deletes the previous Cloudinary asset.",
+        "operationId": "UsersController_uploadImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, or WEBP image (max 5 MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Public URL of the uploaded profile image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload or replace profile image",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "description": "Removes the Cloudinary asset and clears `user.image`.",
+        "operationId": "UsersController_deleteImage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDeletedResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete profile image",
         "tags": [
           "users"
         ]
@@ -442,7 +516,7 @@
     },
     "/api/products": {
       "get": {
-        "description": "Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity.",
+        "description": "Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity. Product `images` are `{ id, url }` objects.",
         "operationId": "ProductsController_findAll",
         "parameters": [
           {
@@ -563,7 +637,7 @@
         ]
       },
       "post": {
-        "description": "Supports `preparationTimeHours` and optional `tags` (normalized lowercase/hyphenated, max 10).",
+        "description": "Supports `preparationTimeHours` and optional `tags`. Upload images via POST /products/:id/images after create (max 5).",
         "operationId": "ProductsController_create",
         "parameters": [],
         "requestBody": {
@@ -679,6 +753,7 @@
     },
     "/api/products/{id}": {
       "get": {
+        "description": "Images are `{ id, url }` (upload via POST /products/:id/images).",
         "operationId": "ProductsController_findOne",
         "parameters": [
           {
@@ -765,6 +840,108 @@
           }
         ],
         "summary": "Soft-delete product (owner cook or admin)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}/images": {
+      "post": {
+        "description": "multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Owner cook or admin only. Returns `{ id, url }`.",
+        "operationId": "ProductsController_uploadImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, or WEBP image (max 5 MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Uploaded image id and public URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImageUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload a product image (max 5 per product)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}/images/{imageId}": {
+      "delete": {
+        "description": "Removes the Cloudinary asset and the image subdocument. `imageId` comes from product.images[].id.",
+        "operationId": "ProductsController_removeImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDeletedResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a product image",
         "tags": [
           "products"
         ]
@@ -1654,11 +1831,11 @@
     },
     {
       "name": "users",
-      "description": "Customer profile and default delivery information"
+      "description": "Customer profile, delivery info, and profile image uploads"
     },
     {
       "name": "products",
-      "description": "Catalog: tags, preparationTimeHours, filters, nearby search"
+      "description": "Catalog, filters, nearby search, and product image uploads (spec 006)"
     },
     {
       "name": "orders",
@@ -1834,6 +2011,18 @@
           "userId"
         ]
       },
+      "UserImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/v1/user.jpg"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
       "DeliveryGeoPointDto": {
         "type": "object",
         "properties": {
@@ -1908,6 +2097,15 @@
             "type": "boolean",
             "example": true
           },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserImageResponseDto"
+              }
+            ]
+          },
           "deliveryInformation": {
             "nullable": true,
             "description": "Default delivery info used with orders source=CUSTOMER_PROFILE",
@@ -1945,6 +2143,35 @@
         "required": [
           "location",
           "address"
+        ]
+      },
+      "ImageUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/v1/sample.jpg"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "ImageDeletedResponseDto": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "example": true
+          },
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234",
+            "description": "Present for product image deletes"
+          }
+        },
+        "required": [
+          "deleted"
         ]
       },
       "PaymentMethodDto": {
@@ -2082,15 +2309,6 @@
             "type": "string",
             "example": "Traditional Pacific shrimp stew"
           },
-          "images": {
-            "example": [
-              "https://res.cloudinary.com/demo/image/upload/sample.jpg"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "price": {
             "type": "number",
             "example": 35000
@@ -2151,6 +2369,24 @@
           "availability"
         ]
       },
+      "ProductImageUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/v1/sample.jpg"
+          },
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234",
+            "description": "Subdocument id — use with DELETE /products/:id/images/:imageId"
+          }
+        },
+        "required": [
+          "url",
+          "id"
+        ]
+      },
       "UpdateProductDto": {
         "type": "object",
         "properties": {
@@ -2159,12 +2395,6 @@
           },
           "description": {
             "type": "string"
-          },
-          "images": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           },
           "price": {
             "type": "number"

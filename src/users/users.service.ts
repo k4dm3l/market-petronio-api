@@ -6,6 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
+import { ImageService } from '../images/image.service';
 import { UpsertDeliveryInformationDto } from './dto/delivery-information.dto';
 import {
   DeliveryInformation,
@@ -15,7 +16,10 @@ import {
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private readonly imageService: ImageService,
+  ) {}
 
   create(data: {
     email: string;
@@ -99,6 +103,42 @@ export class UsersService {
     return this.toPublic(user);
   }
 
+  async uploadProfileImage(
+    userId: string,
+    file: Express.Multer.File | undefined,
+  ) {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    const previousPublicId = user.image?.publicId;
+    const uploaded = await this.imageService.upload(file, {
+      folder: `users/${user.id}`,
+    });
+
+    user.image = { url: uploaded.url, publicId: uploaded.publicId };
+    await user.save();
+
+    if (previousPublicId && previousPublicId !== uploaded.publicId) {
+      await this.imageService.delete(previousPublicId).catch(() => undefined);
+    }
+
+    return { url: uploaded.url };
+  }
+
+  async deleteProfileImage(userId: string) {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.image?.publicId) {
+      throw new BadRequestException('No profile image to delete');
+    }
+
+    await this.imageService.delete(user.image.publicId);
+    user.set('image', undefined);
+    await user.save();
+
+    return { deleted: true };
+  }
+
   /** Snapshot-ready copy of saved delivery info, or null if unset. */
   getDeliverySnapshot(user: UserDocument): DeliveryInformation | null {
     const info = user.deliveryInformation;
@@ -134,6 +174,7 @@ export class UsersService {
       name: user.name,
       role: user.role,
       isActive: user.isActive,
+      image: user.image ? { url: user.image.url } : null,
       deliveryInformation: user.deliveryInformation ?? null,
     };
   }

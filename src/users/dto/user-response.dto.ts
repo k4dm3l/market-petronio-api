@@ -13,6 +13,13 @@ export class DeliveryInformationResponseDto {
   additionalInformation?: string;
 }
 
+export class UserImageResponseDto {
+  @ApiProperty({
+    example: 'https://res.cloudinary.com/demo/image/upload/v1/user.jpg',
+  })
+  url: string;
+}
+
 export class UserMeResponseDto {
   @ApiProperty()
   id: string;
@@ -28,6 +35,12 @@ export class UserMeResponseDto {
 
   @ApiProperty({ example: true })
   isActive: boolean;
+
+  @ApiPropertyOptional({
+    type: UserImageResponseDto,
+    nullable: true,
+  })
+  image: UserImageResponseDto | null;
 
   @ApiPropertyOptional({
     type: DeliveryInformationResponseDto,

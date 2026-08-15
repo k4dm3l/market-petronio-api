@@ -26,6 +26,15 @@ export class DeliveryInformation {
   additionalInformation?: string;
 }
 
+@Schema({ _id: false })
+export class UserImage {
+  @Prop({ required: true })
+  url: string;
+
+  @Prop({ required: true })
+  publicId: string;
+}
+
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
@@ -42,6 +51,10 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  /** Profile image (single); replace on re-upload */
+  @Prop({ type: UserImage })
+  image?: UserImage;
 
   /** Single default delivery address (spec 005 MVP) */
   @Prop({ type: DeliveryInformation })

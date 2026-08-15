@@ -10,7 +10,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
   Max,
   MaxLength,
   Min,
@@ -29,15 +28,6 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['https://res.cloudinary.com/demo/image/upload/sample.jpg'],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsUrl({}, { each: true })
-  images?: string[];
 
   @ApiProperty({ example: 35000 })
   @IsNumber()
@@ -122,12 +112,6 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsUrl({}, { each: true })
-  images?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

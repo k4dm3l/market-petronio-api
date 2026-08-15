@@ -11,6 +11,7 @@ import { CookDocument } from '../cooks/schemas/cook.schema';
 import { CategoriesService } from '../categories/categories.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { ImageService } from '../images/image.service';
 import {
   CreateProductDto,
   NearbyProductsDto,
@@ -22,7 +23,10 @@ import {
   Product,
   ProductAvailability,
   ProductDocument,
+  ProductImageDocument,
 } from './schemas/product.schema';
+
+const MAX_PRODUCT_IMAGES = 5;
 
 @Injectable()
 export class ProductsService {
@@ -30,6 +34,7 @@ export class ProductsService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     private readonly cooksService: CooksService,
     private readonly categoriesService: CategoriesService,
+    private readonly imageService: ImageService,
   ) {}
 
   async create(actor: AuthUser, dto: CreateProductDto) {
@@ -40,7 +45,7 @@ export class ProductsService {
     const product = await this.productModel.create({
       name: dto.name,
       description: dto.description ?? '',
-      images: dto.images ?? [],
+      images: [],
       price: dto.price,
       stock: dto.stock ?? 0,
       categoryId: dto.categoryId
@@ -174,7 +179,6 @@ export class ProductsService {
 
     if (dto.name !== undefined) product.name = dto.name;
     if (dto.description !== undefined) product.description = dto.description;
-    if (dto.images !== undefined) product.images = dto.images;
     if (dto.price !== undefined) product.price = dto.price;
     if (dto.stock !== undefined) product.stock = dto.stock;
     if (dto.categoryId !== undefined) {
@@ -206,6 +210,57 @@ export class ProductsService {
     product.isAvailable = false;
     await product.save();
     return { id: product.id, deleted: true };
+  }
+
+  async addImage(
+    productId: string,
+    actor: AuthUser,
+    file: Express.Multer.File | undefined,
+  ) {
+    const product = await this.findByIdOrThrow(productId);
+    await this.assertCanManage(product, actor);
+
+    if ((product.images?.length ?? 0) >= MAX_PRODUCT_IMAGES) {
+      throw new BadRequestException(
+        `Products can have at most ${MAX_PRODUCT_IMAGES} images`,
+      );
+    }
+
+    const uploaded = await this.imageService.upload(file, {
+      folder: `products/${product.id}`,
+    });
+
+    product.images.push({
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+    } as ProductImageDocument);
+    await product.save();
+
+    const added = product.images[product.images.length - 1];
+    return {
+      id: String(added._id),
+      url: added.url,
+    };
+  }
+
+  async removeImage(productId: string, imageId: string, actor: AuthUser) {
+    const product = await this.findByIdOrThrow(productId);
+    await this.assertCanManage(product, actor);
+
+    if (!Types.ObjectId.isValid(imageId)) {
+      throw new NotFoundException('Image not found');
+    }
+
+    const image = product.images.find((img) => String(img._id) === imageId);
+    if (!image) {
+      throw new NotFoundException('Image not found');
+    }
+
+    await this.imageService.delete(image.publicId);
+    product.images = product.images.filter((img) => String(img._id) !== imageId);
+    await product.save();
+
+    return { id: imageId, deleted: true };
   }
 
   private buildCatalogFilter(query: QueryProductsDto): Record<string, unknown> {
@@ -365,11 +420,24 @@ export class ProductsService {
   }
 
   private mapProductLean(obj: Record<string, unknown>) {
+    const rawImages = (obj.images as unknown[]) ?? [];
+    const images = rawImages.map((img) => {
+      // Legacy string URLs from before spec 006
+      if (typeof img === 'string') {
+        return { id: null, url: img };
+      }
+      const row = img as Record<string, unknown>;
+      return {
+        id: row._id ? String(row._id) : null,
+        url: row.url as string,
+      };
+    });
+
     return {
       id: String(obj._id),
       name: obj.name,
       description: obj.description,
-      images: obj.images,
+      images,
       price: obj.price,
       stock: obj.stock,
       categoryId: obj.categoryId ? String(obj.categoryId) : undefined,

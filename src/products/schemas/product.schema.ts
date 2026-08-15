@@ -8,6 +8,17 @@ export enum ProductAvailability {
   MadeToOrder = 'made_to_order',
 }
 
+@Schema({ _id: true })
+export class ProductImage {
+  @Prop({ required: true })
+  url: string;
+
+  @Prop({ required: true })
+  publicId: string;
+}
+
+export type ProductImageDocument = ProductImage & { _id: Types.ObjectId };
+
 @Schema({ timestamps: true, collection: 'products' })
 export class Product {
   @Prop({ required: true, trim: true })
@@ -16,8 +27,9 @@ export class Product {
   @Prop({ trim: true, default: '' })
   description: string;
 
-  @Prop({ type: [String], default: [] })
-  images: string[];
+  /** Max 5 images; upload via POST /products/:id/images */
+  @Prop({ type: [ProductImage], default: [] })
+  images: ProductImageDocument[];
 
   /** Price in whole COP pesos for MVP */
   @Prop({ required: true, min: 0 })
