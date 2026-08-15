@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { parseCorsOrigins } from './common/utils/parse-cors-origins';
 import { createOpenApiDocument } from './openapi/document';
 
 async function bootstrap() {
@@ -13,7 +14,9 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
 
   app.enableCors({
-    origin: config.get<string>('app.corsOrigin', 'http://localhost:3001'),
+    origin: parseCorsOrigins(config.get<string>('app.corsOrigin')),
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
 
   app.useGlobalPipes(

@@ -6,7 +6,7 @@ export const validationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('api'),
-  CORS_ORIGIN: Joi.string().default('http://localhost:3001'),
+  CORS_ORIGIN: Joi.string().default('http://localhost:5173'),
   MONGODB_URI: Joi.string().required(),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRES_IN: Joi.string().default('15m'),
