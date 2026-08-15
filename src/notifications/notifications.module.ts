@@ -40,6 +40,6 @@ import {
       },
     },
   ],
-  exports: [NotificationsService],
+  exports: [NotificationsService, EMAIL_SENDER],
 })
 export class NotificationsModule {}

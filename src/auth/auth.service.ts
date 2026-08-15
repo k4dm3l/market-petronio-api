@@ -7,9 +7,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import {
+  hashPassword,
+  verifyPassword,
+} from '../common/crypto/password-hasher';
 import { UsersService } from '../users/users.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
@@ -30,7 +33,7 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await hashPassword(dto.password);
     const user = await this.usersService.create({
       email: dto.email,
       passwordHash,
@@ -70,7 +73,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    const valid = await verifyPassword(user.passwordHash, dto.password);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }

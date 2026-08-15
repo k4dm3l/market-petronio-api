@@ -50,4 +50,13 @@ export class UsersService {
       .select('-passwordHash')
       .exec();
   }
+
+  async updatePassword(
+    id: string,
+    passwordHash: string,
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findByIdAndUpdate(id, { passwordHash }, { new: true })
+      .exec();
+  }
 }

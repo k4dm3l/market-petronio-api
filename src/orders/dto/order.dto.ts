@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   MinLength,
   ValidateNested,
@@ -95,4 +96,63 @@ export class UpdateShippingDto {
   @IsOptional()
   @IsString()
   trackingNumber?: string;
+}
+
+export class ListOrdersQueryDto {
+  @ApiPropertyOptional({
+    example: 20,
+    default: 20,
+    description: 'Page size (max 50)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Opaque cursor from the previous page (do not pass customerId)',
+    example: 'eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ',
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+}
+
+export class CustomerOrderHistoryItemDto {
+  @ApiProperty({ example: '68af1a2b3c4d5e6f78901234' })
+  id: string;
+
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.Shipped })
+  status: OrderStatus;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.Paid })
+  paymentStatus: PaymentStatus;
+
+  @ApiProperty({ example: 75000 })
+  total: number;
+
+  @ApiProperty({ example: '2026-08-15T10:00:00.000Z' })
+  createdAt: Date;
+}
+
+export class OrdersPaginationDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ',
+  })
+  nextCursor: string | null;
+
+  @ApiProperty({ example: true })
+  hasMore: boolean;
+}
+
+export class CustomerOrdersListResponseDto {
+  @ApiProperty({ type: [CustomerOrderHistoryItemDto] })
+  data: CustomerOrderHistoryItemDto[];
+
+  @ApiProperty({ type: OrdersPaginationDto })
+  pagination: OrdersPaginationDto;
 }

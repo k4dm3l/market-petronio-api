@@ -26,11 +26,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Market Petronio API')
-    .setDescription(
-      'Catalog, orders, and proximity marketplace API. Use Authorize with a Bearer access token from /auth/login.',
-    )
     .setVersion('0.1.0')
     .addBearerAuth()
+    .addTag('auth', 'Registration, login, token refresh, and password recovery')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

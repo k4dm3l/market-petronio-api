@@ -18,6 +18,7 @@ import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
 import {
   CreateOrderDto,
+  ListOrdersQueryDto,
   UpdateOrderStatusDto,
   UpdatePaymentDto,
   UpdateShippingDto,
@@ -39,6 +40,7 @@ const ORDER_STATUS_FLOW: OrderStatus[] = [
   OrderStatus.Delivered,
 ];
 
+type OrderCursor = { id: string; createdAt: string };
 @Injectable()
 export class OrdersService {
   constructor(
@@ -145,23 +147,106 @@ export class OrdersService {
     return this.toResponse(order);
   }
 
-  async findAll(actor: AuthUser) {
-    const filter: Record<string, unknown> = {};
-
+  async findAll(actor: AuthUser, query: ListOrdersQueryDto = {}) {
+    // Spec 003: customers only see their own history (JWT id, never query customerId)
     if (actor.role === Role.Customer) {
-      filter.customerId = new Types.ObjectId(actor.id);
-    } else if (actor.role === Role.Cook) {
+      return this.listCustomerHistory(actor.id, query);
+    }
+
+    const filter: Record<string, unknown> = {};
+    if (actor.role === Role.Cook) {
       const cook = await this.cooksService.findByUserId(actor.id);
-      if (!cook) return [];
+      if (!cook) {
+        return { data: [], pagination: { nextCursor: null, hasMore: false } };
+      }
       filter.cookId = cook._id;
     }
 
-    const orders = await this.orderModel
+    return this.listWithCursor(filter, query, (o) => this.toResponse(o));
+  }
+
+  /**
+   * Spec 003 — customer order history with cursor pagination.
+   * Scoped exclusively to authenticatedUser.id from the JWT.
+   */
+  async listCustomerHistory(customerId: string, query: ListOrdersQueryDto) {
+    const filter: Record<string, unknown> = {
+      customerId: new Types.ObjectId(customerId),
+    };
+
+    return this.listWithCursor(filter, query, (o) => {
+      const createdAt =
+        (o as OrderDocument & { createdAt?: Date }).createdAt ?? new Date(0);
+      return {
+        id: o.id,
+        status: o.status,
+        paymentStatus: o.payment.status,
+        total: o.totals.total,
+        createdAt,
+      };
+    });
+  }
+
+  private async listWithCursor<T>(
+    baseFilter: Record<string, unknown>,
+    query: ListOrdersQueryDto,
+    mapItem: (order: OrderDocument) => T,
+  ) {
+    const limit = Math.min(Math.max(query.limit ?? 20, 1), 50);
+    const filter: Record<string, unknown> = { ...baseFilter };
+
+    if (query.cursor) {
+      const decoded = this.decodeCursor(query.cursor);
+      const cursorDate = new Date(decoded.createdAt);
+      const cursorId = new Types.ObjectId(decoded.id);
+      filter.$or = [
+        { createdAt: { $lt: cursorDate } },
+        { createdAt: cursorDate, _id: { $lt: cursorId } },
+      ];
+    }
+
+    const rows = await this.orderModel
       .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(50)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
-    return orders.map((o) => this.toResponse(o));
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1] as
+      | (OrderDocument & { createdAt?: Date })
+      | undefined;
+
+    const nextCursor =
+      hasMore && last
+        ? this.encodeCursor({
+            id: last.id,
+            createdAt: (last.createdAt ?? new Date()).toISOString(),
+          })
+        : null;
+
+    return {
+      data: page.map(mapItem),
+      pagination: { nextCursor, hasMore },
+    };
+  }
+
+  private encodeCursor(payload: OrderCursor): string {
+    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  }
+
+  private decodeCursor(cursor: string): OrderCursor {
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as OrderCursor;
+      if (!parsed?.id || !parsed?.createdAt || !Types.ObjectId.isValid(parsed.id)) {
+        throw new Error('invalid');
+      }
+      return parsed;
+    } catch {
+      throw new BadRequestException('Invalid pagination cursor');
+    }
   }
 
   async listAllForAdmin(limit = 100) {

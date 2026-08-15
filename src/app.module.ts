@@ -7,6 +7,7 @@ import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
 import { jwtConfig } from './config/jwt.config';
+import { redisConfig } from './config/redis.config';
 import { validationSchema } from './config/validation.schema';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -19,6 +20,7 @@ import { OrdersModule } from './orders/orders.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { HealthModule } from './health/health.module';
         jwtConfig,
         cloudinaryConfig,
         emailConfig,
+        redisConfig,
       ],
       validationSchema,
       validationOptions: {
@@ -44,6 +47,7 @@ import { HealthModule } from './health/health.module';
         uri: config.getOrThrow<string>('database.uri'),
       }),
     }),
+    RedisModule,
     AuthModule,
     UsersModule,
     CooksModule,

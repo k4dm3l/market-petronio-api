@@ -5,14 +5,23 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import {
   CreateOrderDto,
+  CustomerOrdersListResponseDto,
+  ListOrdersQueryDto,
   UpdateOrderStatusDto,
   UpdatePaymentDto,
   UpdateShippingDto,
@@ -36,9 +45,28 @@ export class OrdersController {
 
   @Roles(Role.Customer, Role.Cook, Role.Admin)
   @Get()
-  @ApiOperation({ summary: 'List orders visible to the current user' })
-  findAll(@CurrentUser() user: AuthUser) {
-    return this.ordersService.findAll(user);
+  @ApiOperation({
+    summary: 'List orders for the authenticated user',
+    description: `
+**Customers (spec 003)** — order history scoped to the JWT user id (never pass \`customerId\`).
+Supports cursor pagination: \`?limit=20&cursor=...\`.
+
+Response for customers:
+\`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }\`
+
+**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile.
+    `.trim(),
+  })
+  @ApiOkResponse({
+    description: 'Paginated order list',
+    type: CustomerOrdersListResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid Bearer token' })
+  findAll(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ListOrdersQueryDto,
+  ) {
+    return this.ordersService.findAll(user, query);
   }
 
   @Roles(Role.Customer, Role.Cook, Role.Admin)
