@@ -5,7 +5,7 @@ export function buildOpenApiConfig() {
   return new DocumentBuilder()
     .setTitle('Market Petronio API')
     .setDescription(
-      'Marketplace API for cooks and customers (Buonaventura / Pacific region).',
+      'Marketplace API for cooks and customers (Pacific region).',
     )
     .setVersion('0.1.0')
     .addBearerAuth()
