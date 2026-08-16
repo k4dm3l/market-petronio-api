@@ -46,7 +46,7 @@ Single-cook order. Stock is reserved for \`available\` products.
 
 **Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):
 
-- \`source: CUSTOMER_PROFILE\` — uses \`PATCH /users/me/delivery-information\`
+- \`source: CUSTOMER_PROFILE\` — primary saved address (or \`addressId\`); falls back to legacy deliveryInformation
 - \`source: CUSTOM\` — requires \`location\` (GeoJSON Point \`[lng, lat]\`) and \`address\`; \`additionalInformation\` optional
     `.trim(),
   })
@@ -54,11 +54,23 @@ Single-cook order. Stock is reserved for \`available\` products.
     type: CreateOrderDto,
     examples: {
       customerProfile: {
-        summary: 'Use saved customer delivery',
+        summary: 'Use primary saved address',
         value: {
           cookId: '507f1f77bcf86cd799439011',
           items: [{ productId: '507f1f77bcf86cd799439012', quantity: 2 }],
           delivery: { source: DeliverySource.CustomerProfile },
+          paymentMethod: 'nequi',
+        },
+      },
+      savedAddress: {
+        summary: 'Use a specific saved address',
+        value: {
+          cookId: '507f1f77bcf86cd799439011',
+          items: [{ productId: '507f1f77bcf86cd799439012', quantity: 2 }],
+          delivery: {
+            source: DeliverySource.CustomerProfile,
+            addressId: '01K2ABC...',
+          },
           paymentMethod: 'nequi',
         },
       },

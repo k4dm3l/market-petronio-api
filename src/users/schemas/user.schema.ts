@@ -26,6 +26,38 @@ export class DeliveryInformation {
   additionalInformation?: string;
 }
 
+/** Saved customer address (spec 010) — identified by `id`, not array index */
+@Schema({ _id: false })
+export class UserAddress {
+  @Prop({ required: true })
+  id: string;
+
+  @Prop({ required: true, trim: true })
+  country: string;
+
+  @Prop({ required: true, trim: true })
+  department: string;
+
+  @Prop({ required: true, trim: true })
+  city: string;
+
+  @Prop({ required: true, trim: true })
+  address: string;
+
+  @Prop({ trim: true })
+  notes?: string;
+
+  /** String — postal codes may have leading zeros / letters */
+  @Prop({ trim: true })
+  zipcode?: string;
+
+  @Prop({ type: DeliveryGeoPoint, required: true })
+  coordinates: DeliveryGeoPoint;
+
+  @Prop({ required: true, default: false })
+  isPrimary: boolean;
+}
+
 @Schema({ _id: false })
 export class UserImage {
   @Prop({ required: true })
@@ -56,9 +88,13 @@ export class User {
   @Prop({ type: UserImage })
   image?: UserImage;
 
-  /** Single default delivery address (spec 005 MVP) */
+  /** Single default delivery address (spec 005 MVP) — prefer `addresses` for new clients */
   @Prop({ type: DeliveryInformation })
   deliveryInformation?: DeliveryInformation;
+
+  /** Saved addresses; at most one `isPrimary: true` (spec 010) */
+  @Prop({ type: [UserAddress], default: [] })
+  addresses: UserAddress[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

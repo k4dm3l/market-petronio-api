@@ -158,7 +158,7 @@ export class OrdersService {
     return this.toResponse(order);
   }
 
-  /** Spec 005 — resolve + snapshot delivery before products/inventory. */
+  /** Spec 005/010 — resolve + snapshot delivery before products/inventory. */
   private async resolveDeliverySnapshot(
     customerId: string,
     dto: CreateOrderDto,
@@ -167,13 +167,26 @@ export class OrdersService {
       const user = await this.usersService.findById(customerId);
       if (!user) throw new NotFoundException('User not found');
 
-      const snapshot = this.usersService.getDeliverySnapshot(user);
-      if (!snapshot) {
+      if (dto.delivery.addressId) {
+        const fromAddress = this.usersService.getAddressDeliverySnapshot(
+          user,
+          dto.delivery.addressId,
+        );
+        if (!fromAddress) {
+          throw new NotFoundException('Address not found');
+        }
+        return fromAddress;
+      }
+
+      const fromPrimary =
+        this.usersService.getAddressDeliverySnapshot(user) ??
+        this.usersService.getDeliverySnapshot(user);
+      if (!fromPrimary) {
         throw new BadRequestException(
-          'No saved delivery information. Set it on your profile or use delivery.source=CUSTOM with location and address.',
+          'No saved address. Add one via POST /users/me/addresses, or use delivery.source=CUSTOM with location and address.',
         );
       }
-      return snapshot;
+      return fromPrimary;
     }
 
     // CUSTOM

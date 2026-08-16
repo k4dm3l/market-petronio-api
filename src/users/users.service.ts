@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { randomUUID } from 'crypto';
 import { Model, Types } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
 import {
@@ -17,8 +18,13 @@ import { escapeRegex } from '../common/utils/escape-regex';
 import { ImageService } from '../images/image.service';
 import { UpsertDeliveryInformationDto } from './dto/delivery-information.dto';
 import {
+  CreateAddressDto,
+  UpdateAddressDto,
+} from './dto/update-address.dto';
+import {
   DeliveryInformation,
   User,
+  UserAddress,
   UserDocument,
 } from './schemas/user.schema';
 
@@ -159,6 +165,165 @@ export class UsersService {
     return this.toPublic(user);
   }
 
+  async createAddress(userId: string, dto: CreateAddressDto) {
+    this.assertCoordinates(dto.coordinates.coordinates);
+
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    const existing = user.addresses ?? [];
+    const makePrimary = existing.length === 0 || dto.isPrimary === true;
+
+    const address: UserAddress = {
+      id: randomUUID(),
+      country: dto.country.trim(),
+      department: dto.department.trim(),
+      city: dto.city.trim(),
+      address: dto.address.trim(),
+      notes: dto.notes?.trim() || undefined,
+      zipcode: dto.zipcode?.trim() || undefined,
+      coordinates: {
+        type: 'Point',
+        coordinates: [
+          dto.coordinates.coordinates[0],
+          dto.coordinates.coordinates[1],
+        ],
+      },
+      isPrimary: makePrimary,
+    };
+
+    // Atomic: demote previous primaries when promoting, then push
+    const updated = await this.userModel
+      .findOneAndUpdate(
+        { _id: userId },
+        [
+          {
+            $set: {
+              addresses: {
+                $concatArrays: [
+                  {
+                    $map: {
+                      input: { $ifNull: ['$addresses', []] },
+                      as: 'a',
+                      in: makePrimary
+                        ? { $mergeObjects: ['$$a', { isPrimary: false }] }
+                        : '$$a',
+                    },
+                  },
+                  [address],
+                ],
+              },
+            },
+          },
+        ],
+        { new: true },
+      )
+      .select('-passwordHash')
+      .exec();
+
+    if (!updated) throw new NotFoundException('User not found');
+    return this.toPublic(updated);
+  }
+
+  async updateAddress(
+    userId: string,
+    addressId: string,
+    dto: UpdateAddressDto,
+  ) {
+    if (!this.hasAddressPatch(dto)) {
+      throw new BadRequestException('At least one field is required');
+    }
+
+    if (dto.coordinates) {
+      this.assertCoordinates(dto.coordinates.coordinates);
+    }
+
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    const current = (user.addresses ?? []).find((a) => a.id === addressId);
+    if (!current) throw new NotFoundException('Address not found');
+
+    if (dto.isPrimary === false && current.isPrimary) {
+      throw new BadRequestException(
+        'Cannot unset the primary address. Promote another address with isPrimary: true first.',
+      );
+    }
+
+    const promote = dto.isPrimary === true;
+    const patch: Record<string, unknown> = {};
+    if (dto.country !== undefined) patch.country = dto.country.trim();
+    if (dto.department !== undefined) patch.department = dto.department.trim();
+    if (dto.city !== undefined) patch.city = dto.city.trim();
+    if (dto.address !== undefined) patch.address = dto.address.trim();
+    if (dto.notes !== undefined) patch.notes = dto.notes.trim();
+    if (dto.zipcode !== undefined) patch.zipcode = dto.zipcode.trim();
+    if (dto.coordinates) {
+      patch.coordinates = {
+        type: 'Point',
+        coordinates: [
+          dto.coordinates.coordinates[0],
+          dto.coordinates.coordinates[1],
+        ],
+      };
+    }
+    if (dto.isPrimary !== undefined) patch.isPrimary = dto.isPrimary;
+
+    const updated = await this.userModel
+      .findOneAndUpdate(
+        { _id: userId, 'addresses.id': addressId },
+        [
+          {
+            $set: {
+              addresses: {
+                $map: {
+                  input: { $ifNull: ['$addresses', []] },
+                  as: 'a',
+                  in: {
+                    $cond: [
+                      { $eq: ['$$a.id', addressId] },
+                      { $mergeObjects: ['$$a', patch] },
+                      promote
+                        ? { $mergeObjects: ['$$a', { isPrimary: false }] }
+                        : '$$a',
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+        { new: true },
+      )
+      .select('-passwordHash')
+      .exec();
+
+    if (!updated) throw new NotFoundException('Address not found');
+    return this.toPublic(updated);
+  }
+
+  async deleteAddress(userId: string, addressId: string) {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    const addresses = [...(user.addresses ?? [])];
+    const index = addresses.findIndex((a) => a.id === addressId);
+    if (index === -1) throw new NotFoundException('Address not found');
+
+    const wasPrimary = addresses[index].isPrimary;
+    addresses.splice(index, 1);
+
+    // Keep invariant: if any addresses remain, exactly one is primary
+    if (wasPrimary && addresses.length > 0 && !addresses.some((a) => a.isPrimary)) {
+      addresses[0].isPrimary = true;
+    }
+
+    user.addresses = addresses;
+    await user.save();
+
+    return this.toPublic(user);
+  }
+
   async uploadProfileImage(
     userId: string,
     file: Express.Multer.File | undefined,
@@ -215,6 +380,49 @@ export class UsersService {
     };
   }
 
+  /** Resolve a saved address (by id, or primary) into an order delivery snapshot. */
+  getAddressDeliverySnapshot(
+    user: UserDocument,
+    addressId?: string,
+  ): DeliveryInformation | null {
+    const addresses = user.addresses ?? [];
+    const match = addressId
+      ? addresses.find((a) => a.id === addressId)
+      : addresses.find((a) => a.isPrimary) ?? addresses[0];
+
+    if (!match) return null;
+
+    return {
+      location: {
+        type: 'Point',
+        coordinates: [
+          match.coordinates.coordinates[0],
+          match.coordinates.coordinates[1],
+        ],
+      },
+      address: [
+        match.address,
+        match.city,
+        match.department,
+        match.country,
+      ].join(', '),
+      additionalInformation: match.notes,
+    };
+  }
+
+  private hasAddressPatch(dto: UpdateAddressDto): boolean {
+    return (
+      dto.country !== undefined ||
+      dto.department !== undefined ||
+      dto.city !== undefined ||
+      dto.address !== undefined ||
+      dto.notes !== undefined ||
+      dto.zipcode !== undefined ||
+      dto.coordinates !== undefined ||
+      dto.isPrimary !== undefined
+    );
+  }
+
   private assertCoordinates(coordinates: [number, number]) {
     const [lng, lat] = coordinates;
     if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
@@ -242,6 +450,17 @@ export class UsersService {
           ? { url: user.image.url }
           : null,
       deliveryInformation: user.deliveryInformation ?? null,
+      addresses: (user.addresses ?? []).map((a) => ({
+        id: a.id,
+        country: a.country,
+        department: a.department,
+        city: a.city,
+        address: a.address,
+        notes: a.notes,
+        zipcode: a.zipcode,
+        coordinates: a.coordinates,
+        isPrimary: a.isPrimary,
+      })),
     };
   }
 }

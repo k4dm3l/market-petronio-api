@@ -10,10 +10,13 @@ export function buildOpenApiConfig() {
     .setVersion('0.1.0')
     .addBearerAuth()
     .addTag('auth', 'Registration, login, token refresh, and password recovery')
-    .addTag('users', 'Customer profile, delivery info, and profile image uploads')
+    .addTag(
+      'users',
+      'Customer profile, saved addresses (spec 010), and profile image uploads',
+    )
     .addTag(
       'products',
-      'Catalog, filters, nearby search, and product image uploads (spec 006)',
+      'Catalog, filters, nearby search, and pre-create product image uploads (spec 011)',
     )
     .addTag(
       'orders',

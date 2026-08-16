@@ -13,6 +13,35 @@ export class DeliveryInformationResponseDto {
   additionalInformation?: string;
 }
 
+export class UserAddressResponseDto {
+  @ApiProperty({ example: '01K2ABC...' })
+  id: string;
+
+  @ApiProperty({ example: 'Colombia' })
+  country: string;
+
+  @ApiProperty({ example: 'Valle del Cauca' })
+  department: string;
+
+  @ApiProperty({ example: 'Buenaventura' })
+  city: string;
+
+  @ApiProperty({ example: 'Calle 5 #10-20' })
+  address: string;
+
+  @ApiPropertyOptional({ example: 'Casa azul, next to the bakery' })
+  notes?: string;
+
+  @ApiPropertyOptional({ example: '764501' })
+  zipcode?: string;
+
+  @ApiProperty({ type: DeliveryGeoPointDto })
+  coordinates: DeliveryGeoPointDto;
+
+  @ApiProperty({ example: true })
+  isPrimary: boolean;
+}
+
 export class UserImageResponseDto {
   @ApiProperty({
     example: 'https://res.cloudinary.com/demo/image/upload/v1/user.jpg',
@@ -45,7 +74,14 @@ export class UserMeResponseDto {
   @ApiPropertyOptional({
     type: DeliveryInformationResponseDto,
     nullable: true,
-    description: 'Default delivery info used with orders source=CUSTOMER_PROFILE',
+    description:
+      'Legacy single delivery (spec 005). Prefer `addresses` for new clients.',
   })
   deliveryInformation: DeliveryInformationResponseDto | null;
+
+  @ApiProperty({
+    type: [UserAddressResponseDto],
+    description: 'Saved addresses; at most one is primary (spec 010)',
+  })
+  addresses: UserAddressResponseDto[];
 }

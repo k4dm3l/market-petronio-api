@@ -86,6 +86,18 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({
     type: [String],
+    example: ['68af1a2b3c4d5e6f78901234'],
+    description:
+      'Ids from POST /products/images (TEMPORARY images owned by you). Embedded on the product as `{ id, url }` / `{ url, publicId }` subdocs.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsMongoId({ each: true })
+  images?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
     example: ['seafood', 'shrimp', 'traditional', 'pacific-food'],
     description:
       'Must already exist in the global tag catalog (POST /tags). Normalized to lowercase; max 10; unique',

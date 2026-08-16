@@ -48,10 +48,20 @@ export class CreateOrderDeliveryDto {
     enum: DeliverySource,
     example: DeliverySource.CustomerProfile,
     description:
-      'CUSTOMER_PROFILE copies saved user delivery; CUSTOM requires location + address',
+      'CUSTOMER_PROFILE copies primary/selected saved address (or legacy deliveryInformation); CUSTOM requires location + address',
   })
   @IsEnum(DeliverySource)
   source: DeliverySource;
+
+  @ApiPropertyOptional({
+    example: '01K2ABC...',
+    description:
+      'When source is CUSTOMER_PROFILE, select a saved address by id. Omit to use the primary address.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  addressId?: string;
 
   @ApiPropertyOptional({
     type: DeliveryGeoPointDto,

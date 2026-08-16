@@ -1,12 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { CloudinaryImageAdapter } from './adapters/cloudinary/cloudinary.adapter';
 import { NoOpImageStorageAdapter } from './adapters/noop-image.adapter';
 import { ImageService } from './image.service';
 import { IMAGE_STORAGE_ADAPTER } from './interfaces/image-storage.adapter';
+import { StoredImage, StoredImageSchema } from './schemas/image.schema';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [
+    ConfigModule,
+    MongooseModule.forFeature([
+      { name: StoredImage.name, schema: StoredImageSchema },
+    ]),
+  ],
   providers: [
     ImageService,
     {
@@ -29,6 +36,6 @@ import { IMAGE_STORAGE_ADAPTER } from './interfaces/image-storage.adapter';
       },
     },
   ],
-  exports: [ImageService],
+  exports: [ImageService, MongooseModule],
 })
 export class ImagesModule {}

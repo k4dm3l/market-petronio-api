@@ -24,7 +24,10 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { ProductImageUploadResponseDto, ImageDeletedResponseDto } from '../images/dto/image-upload-response.dto';
+import {
+  ImageDeletedResponseDto,
+  ProductImagesUploadResponseDto,
+} from '../images/dto/image-upload-response.dto';
 import {
   CreateProductDto,
   NearbyProductsDto,
@@ -63,34 +66,12 @@ export class ProductsController {
     return this.productsService.findNearby(query);
   }
 
-  @Public()
-  @Get(':id')
-  @ApiOperation({
-    summary: 'Get product by id',
-    description: 'Images are `{ id, url }` (upload via POST /products/:id/images).',
-  })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
-  }
-
   @Roles(Role.Cook, Role.Admin)
-  @Post()
+  @Post('images')
   @ApiOperation({
-    summary:
-      'Create product (cook: own catalog; admin: must pass cookId)',
+    summary: 'Upload a product image (no product required)',
     description:
-      'Supports `preparationTimeHours` and optional `tags` (must exist in GET /tags catalog; create tags via POST /tags as admin). Upload images via POST /products/:id/images after create (max 5).',
-  })
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
-    return this.productsService.create(user, dto);
-  }
-
-  @Roles(Role.Cook, Role.Admin)
-  @Post(':id/images')
-  @ApiOperation({
-    summary: 'Upload a product image (max 5 per product)',
-    description:
-      'multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Owner cook or admin only. Returns `{ id, url }`.',
+      'multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Persists a TEMPORARY image; pass returned `id` in `POST /products` `images`. Max 5 images per product on create.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -107,36 +88,57 @@ export class ProductsController {
     },
   })
   @ApiOkResponse({
-    description: 'Uploaded image id and public URL',
-    type: ProductImageUploadResponseDto,
+    description: 'Persisted temporary image(s)',
+    type: ProductImagesUploadResponseDto,
   })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  uploadImage(
-    @Param('id') id: string,
+  uploadImages(
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.productsService.addImage(id, user, file);
+    return this.productsService.uploadImages(user, file);
   }
 
   @Roles(Role.Cook, Role.Admin)
-  @Delete(':id/images/:imageId')
+  @Delete('images/:imageId')
   @ApiOperation({
-    summary: 'Delete a product image',
+    summary: 'Delete a product image by id',
     description:
-      'Removes the Cloudinary asset and the image subdocument. `imageId` comes from product.images[].id.',
+      'Deletes Cloudinary asset + images collection row. If ASSOCIATED, also removes the subdoc from the product. Must be the uploader (or admin).',
   })
   @ApiOkResponse({ type: ImageDeletedResponseDto })
   removeImage(
-    @Param('id') id: string,
     @Param('imageId') imageId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.productsService.removeImage(id, imageId, user);
+    return this.productsService.removeImage(imageId, user);
+  }
+
+  @Public()
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get product by id',
+    description:
+      'Images are `{ id, url }`. Upload via POST /products/images before create.',
+  })
+  findOne(@Param('id') id: string) {
+    return this.productsService.findOne(id);
+  }
+
+  @Roles(Role.Cook, Role.Admin)
+  @Post()
+  @ApiOperation({
+    summary:
+      'Create product (cook: own catalog; admin: must pass cookId)',
+    description:
+      'Optional `images`: ids from POST /products/images. Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.',
+  })
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
+    return this.productsService.create(user, dto);
   }
 
   @Roles(Role.Cook, Role.Admin)

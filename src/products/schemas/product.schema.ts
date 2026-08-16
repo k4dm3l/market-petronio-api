@@ -27,7 +27,7 @@ export class Product {
   @Prop({ trim: true, default: '' })
   description: string;
 
-  /** Max 5 images; upload via POST /products/:id/images */
+  /** Max 5 images; upload via POST /products/images then pass ids on create */
   @Prop({ type: [ProductImage], default: [] })
   images: ProductImageDocument[];
 

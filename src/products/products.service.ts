@@ -19,6 +19,11 @@ import {
 } from '../common/pagination/cursor.util';
 import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { ImageService } from '../images/image.service';
+import {
+  ImageEntityType,
+  ImageStatus,
+  ImageType,
+} from '../images/schemas/image.schema';
 import { TagsService } from '../tags/tags.service';
 import {
   CreateProductDto,
@@ -54,10 +59,31 @@ export class ProductsService {
     const tags = normalizeProductTags(dto.tags);
     await this.tagsService.assertTagsExist(tags);
 
+    const imageIds = dto.images ?? [];
+    if (imageIds.length > MAX_PRODUCT_IMAGES) {
+      throw new BadRequestException(
+        `Products can have at most ${MAX_PRODUCT_IMAGES} images`,
+      );
+    }
+
+    const claimable = await this.imageService.assertClaimableProductImages(
+      imageIds,
+      actor.id,
+    );
+
+    const productImages = claimable.map(
+      (img) =>
+        ({
+          _id: img._id,
+          url: img.url,
+          publicId: img.publicId,
+        }) as ProductImageDocument,
+    );
+
     const product = await this.productModel.create({
       name: dto.name,
       description: dto.description ?? '',
-      images: [],
+      images: productImages,
       price: dto.price,
       stock: dto.stock ?? 0,
       categoryId: dto.categoryId
@@ -74,6 +100,11 @@ export class ProductsService {
       isAvailable: dto.isAvailable ?? true,
       isActive: true,
     });
+
+    await this.imageService.markAssociatedToProduct(
+      claimable.map((img) => img.id),
+      product.id,
+    );
 
     return this.toResponse(product, cook);
   }
@@ -269,55 +300,48 @@ export class ProductsService {
     return { id: product.id, deleted: true };
   }
 
-  async addImage(
-    productId: string,
+  async uploadImages(
     actor: AuthUser,
     file: Express.Multer.File | undefined,
   ) {
-    const product = await this.findByIdOrThrow(productId);
-    await this.assertCanManage(product, actor);
-
-    if ((product.images?.length ?? 0) >= MAX_PRODUCT_IMAGES) {
-      throw new BadRequestException(
-        `Products can have at most ${MAX_PRODUCT_IMAGES} images`,
-      );
-    }
-
-    const uploaded = await this.imageService.upload(file, {
-      folder: `products/${product.id}`,
-      variant: 'product',
-    });
-
-    product.images.push({
-      url: uploaded.url,
-      publicId: uploaded.publicId,
-    } as ProductImageDocument);
-    await product.save();
-
-    const added = product.images[product.images.length - 1];
-    return {
-      id: String(added._id),
-      url: this.imageService.getDeliveryUrl(added.publicId, 'product'),
-    };
+    // Cooks/admins only (enforced by controller roles)
+    const image = await this.imageService.uploadTemporaryProductImage(
+      file,
+      actor.id,
+    );
+    return { images: [this.imageService.toUploadItem(image)] };
   }
 
-  async removeImage(productId: string, imageId: string, actor: AuthUser) {
-    const product = await this.findByIdOrThrow(productId);
-    await this.assertCanManage(product, actor);
+  async removeImage(imageId: string, actor: AuthUser) {
+    const image = await this.imageService.findById(imageId);
+    if (!image) throw new NotFoundException('Image not found');
 
-    if (!Types.ObjectId.isValid(imageId)) {
-      throw new NotFoundException('Image not found');
+    if (
+      actor.role !== Role.Admin &&
+      image.uploadedBy.toString() !== actor.id
+    ) {
+      throw new ForbiddenException('You cannot delete this image');
     }
 
-    const image = product.images.find((img) => String(img._id) === imageId);
-    if (!image) {
-      throw new NotFoundException('Image not found');
+    if (image.type !== ImageType.Product) {
+      throw new BadRequestException('Not a product image');
     }
 
-    await this.imageService.delete(image.publicId);
-    product.images = product.images.filter((img) => String(img._id) !== imageId);
-    await product.save();
+    // Keep product.images in sync when already associated
+    if (
+      image.status === ImageStatus.Associated &&
+      image.entityType === ImageEntityType.Product &&
+      image.entityId
+    ) {
+      await this.productModel
+        .updateOne(
+          { _id: image.entityId },
+          { $pull: { images: { _id: image._id } } },
+        )
+        .exec();
+    }
 
+    await this.imageService.deletePersisted(image);
     return { id: imageId, deleted: true };
   }
 

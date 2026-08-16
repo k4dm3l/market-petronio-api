@@ -1,12 +1,13 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
+  Param,
   Patch,
   Post,
   UploadedFile,
   UseInterceptors,
-  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -15,14 +16,22 @@ import {
   ApiConsumes,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { ImageUploadResponseDto, ImageDeletedResponseDto } from '../images/dto/image-upload-response.dto';
+import {
+  ImageDeletedResponseDto,
+  ImageUploadResponseDto,
+} from '../images/dto/image-upload-response.dto';
 import { UpsertDeliveryInformationDto } from './dto/delivery-information.dto';
+import {
+  CreateAddressDto,
+  UpdateAddressDto,
+} from './dto/update-address.dto';
 import { UserMeResponseDto } from './dto/user-response.dto';
 import { UsersService } from './users.service';
 
@@ -37,7 +46,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Get current user profile',
     description:
-      'Includes `image` (`{ url }`) and `deliveryInformation` when set.',
+      'Includes `image` (`{ url }`), `addresses`, and legacy `deliveryInformation` when set.',
   })
   @ApiOkResponse({ type: UserMeResponseDto })
   getMe(@CurrentUser() user: AuthUser) {
@@ -45,11 +54,59 @@ export class UsersController {
   }
 
   @Roles(Role.Customer)
+  @Post('me/addresses')
+  @ApiOperation({
+    summary: 'Add a saved address',
+    description:
+      'First address is always primary. Setting `isPrimary: true` demotes any previous primary atomically.',
+  })
+  @ApiOkResponse({ type: UserMeResponseDto })
+  createAddress(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateAddressDto,
+  ) {
+    return this.usersService.createAddress(user.id, dto);
+  }
+
+  @Roles(Role.Customer)
+  @Patch('me/addresses/:addressId')
+  @ApiOperation({
+    summary: 'Partially update a saved address',
+    description:
+      "Updates fields on the authenticated user's address by `addressId`. Setting `isPrimary: true` demotes other primaries atomically. Unsetting the only primary returns 400.",
+  })
+  @ApiParam({ name: 'addressId', example: '01K2ABC...' })
+  @ApiOkResponse({ type: UserMeResponseDto })
+  updateAddress(
+    @CurrentUser() user: AuthUser,
+    @Param('addressId') addressId: string,
+    @Body() dto: UpdateAddressDto,
+  ) {
+    return this.usersService.updateAddress(user.id, addressId, dto);
+  }
+
+  @Roles(Role.Customer)
+  @Delete('me/addresses/:addressId')
+  @ApiOperation({
+    summary: 'Delete a saved address',
+    description:
+      'Removes the address by id. If the deleted address was primary and others remain, the first remaining address becomes primary.',
+  })
+  @ApiParam({ name: 'addressId', example: '01K2ABC...' })
+  @ApiOkResponse({ type: UserMeResponseDto })
+  deleteAddress(
+    @CurrentUser() user: AuthUser,
+    @Param('addressId') addressId: string,
+  ) {
+    return this.usersService.deleteAddress(user.id, addressId);
+  }
+
+  @Roles(Role.Customer)
   @Patch('me/delivery-information')
   @ApiOperation({
-    summary: 'Set or replace default delivery information',
+    summary: 'Set or replace default delivery information (legacy)',
     description:
-      'Single default address for MVP. Used when creating orders with `delivery.source = CUSTOMER_PROFILE`.',
+      'Single default address for MVP. Prefer `POST /users/me/addresses`. Still used when creating orders with `delivery.source = CUSTOMER_PROFILE` if no saved addresses exist.',
   })
   @ApiOkResponse({ type: UserMeResponseDto })
   upsertDelivery(
