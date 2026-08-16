@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
 import { Role } from '../common/enums/role.enum';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
@@ -13,17 +14,23 @@ export class CategoriesController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'List active categories' })
-  findAll() {
-    return this.categoriesService.findAll(false);
+  @ApiOperation({
+    summary: 'List active categories',
+    description: 'Optional `search` matches name or description.',
+  })
+  findAll(@Query() query: SearchQueryDto) {
+    return this.categoriesService.findAll(false, query.search);
   }
 
   @ApiBearerAuth()
   @Roles(Role.Admin)
   @Get('all')
-  @ApiOperation({ summary: 'List all categories including inactive (admin)' })
-  findAllAdmin() {
-    return this.categoriesService.findAll(true);
+  @ApiOperation({
+    summary: 'List all categories including inactive (admin)',
+    description: 'Optional `search` matches name or description.',
+  })
+  findAllAdmin(@Query() query: SearchQueryDto) {
+    return this.categoriesService.findAll(true, query.search);
   }
 
   @Public()

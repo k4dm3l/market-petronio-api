@@ -48,8 +48,10 @@ export class AdminService {
     };
   }
 
-  async listCustomers() {
-    const users = await this.usersService.listByRole(Role.Customer);
+  async listCustomers(search?: string) {
+    const users = await this.usersService.listByRole(Role.Customer, {
+      search,
+    });
     return users.map((u) => ({
       id: u.id,
       email: u.email,
@@ -85,8 +87,8 @@ export class AdminService {
     };
   }
 
-  listCooks() {
-    return this.cooksService.listAllForAdmin();
+  listCooks(search?: string) {
+    return this.cooksService.listAllForAdmin(100, search);
   }
 
   async setCookActive(cookId: string, isActive: boolean) {
@@ -129,11 +131,11 @@ export class AdminService {
     return product;
   }
 
-  listOrders() {
-    return this.ordersService.listAllForAdmin();
+  listOrders(search?: string) {
+    return this.ordersService.listAllForAdmin(100, search);
   }
 
-  listCategories() {
-    return this.categoriesService.findAll(true);
+  listCategories(search?: string) {
+    return this.categoriesService.findAll(true, search);
   }
 }

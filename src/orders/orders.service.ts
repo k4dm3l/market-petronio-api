@@ -9,6 +9,7 @@ import { Model, Types } from 'mongoose';
 import { CooksService } from '../cooks/cooks.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { escapeRegex } from '../common/utils/escape-regex';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   ProductAvailability,
@@ -296,9 +297,28 @@ export class OrdersService {
     }
   }
 
-  async listAllForAdmin(limit = 100) {
+  async listAllForAdmin(limit = 100, search?: string) {
+    const filter: Record<string, unknown> = {};
+
+    if (search?.trim()) {
+      const q = escapeRegex(search.trim());
+      const customerIds = await this.usersService.findIdsMatchingSearch(
+        search,
+        Role.Customer,
+      );
+      const or: Record<string, unknown>[] = [
+        { orderNumber: { $regex: q, $options: 'i' } },
+        { status: { $regex: q, $options: 'i' } },
+        { 'payment.method': { $regex: q, $options: 'i' } },
+      ];
+      if (customerIds.length) {
+        or.push({ customerId: { $in: customerIds } });
+      }
+      filter.$or = or;
+    }
+
     const orders = await this.orderModel
-      .find()
+      .find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .exec();

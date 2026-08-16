@@ -8,6 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { escapeRegex } from '../common/utils/escape-regex';
 import {
   Order,
   OrderDocument,
@@ -91,9 +92,30 @@ export class CooksService {
     return cooks.map((c) => this.toPublicView(c));
   }
 
-  async listAllForAdmin(limit = 100) {
+  async listAllForAdmin(limit = 100, search?: string) {
+    const filter: Record<string, unknown> = {};
+
+    if (search?.trim()) {
+      const q = escapeRegex(search.trim());
+      const userIds = await this.usersService.findIdsMatchingSearch(
+        search,
+        Role.Cook,
+      );
+      const or: Record<string, unknown>[] = [
+        { displayName: { $regex: q, $options: 'i' } },
+        { bio: { $regex: q, $options: 'i' } },
+        { publicLocation: { $regex: q, $options: 'i' } },
+        { specialties: { $regex: q, $options: 'i' } },
+        { contactWhatsApp: { $regex: q, $options: 'i' } },
+      ];
+      if (userIds.length) {
+        or.push({ userId: { $in: userIds } });
+      }
+      filter.$or = or;
+    }
+
     const cooks = await this.cookModel
-      .find()
+      .find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .exec();

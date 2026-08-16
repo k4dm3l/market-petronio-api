@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { escapeRegex } from '../common/utils/escape-regex';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { Category, CategoryDocument } from './schemas/category.schema';
 
@@ -33,8 +34,19 @@ export class CategoriesService {
     return this.toResponse(category);
   }
 
-  async findAll(includeInactive = false) {
-    const filter = includeInactive ? {} : { isActive: true };
+  async findAll(includeInactive = false, search?: string) {
+    const filter: Record<string, unknown> = includeInactive
+      ? {}
+      : { isActive: true };
+
+    if (search?.trim()) {
+      const q = escapeRegex(search.trim());
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+      ];
+    }
+
     const categories = await this.categoryModel
       .find(filter)
       .sort({ name: 1 })

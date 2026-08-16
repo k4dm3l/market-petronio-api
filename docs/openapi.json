@@ -949,8 +949,20 @@
     },
     "/api/categories": {
       "get": {
+        "description": "Optional `search` matches name or description.",
         "operationId": "CategoriesController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -992,8 +1004,20 @@
     },
     "/api/categories/all": {
       "get": {
+        "description": "Optional `search` matches name or description.",
         "operationId": "CategoriesController_findAllAdmin",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1434,8 +1458,20 @@
     },
     "/api/admin/customers": {
       "get": {
+        "description": "Optional `search` matches name or email (case-insensitive).",
         "operationId": "AdminController_listCustomers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1493,8 +1529,20 @@
     },
     "/api/admin/cooks": {
       "get": {
+        "description": "Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.",
         "operationId": "AdminController_listCooks",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1611,8 +1659,20 @@
     },
     "/api/admin/orders": {
       "get": {
+        "description": "Optional `search` matches order number, status, payment method, or customer name/email.",
         "operationId": "AdminController_listOrders",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1631,8 +1691,20 @@
     },
     "/api/admin/categories": {
       "get": {
+        "description": "Optional `search` matches name or description.",
         "operationId": "AdminController_listCategories",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1855,7 +1927,7 @@
     },
     {
       "name": "notifications",
-      "description": "Notification inbox"
+      "description": "Transactional email inbox (centralized templates, spec 007)"
     },
     {
       "name": "health",

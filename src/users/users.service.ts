@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
+import { escapeRegex } from '../common/utils/escape-regex';
 import { ImageService } from '../images/image.service';
 import { UpsertDeliveryInformationDto } from './dto/delivery-information.dto';
 import {
@@ -44,13 +45,52 @@ export class UsersService {
       .exec();
   }
 
-  listByRole(role: Role, limit = 100): Promise<UserDocument[]> {
+  listByRole(
+    role: Role,
+    options: { search?: string; limit?: number } = {},
+  ): Promise<UserDocument[]> {
+    const limit = options.limit ?? 100;
+    const filter: Record<string, unknown> = { role };
+
+    if (options.search?.trim()) {
+      const q = escapeRegex(options.search.trim());
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+      ];
+    }
+
     return this.userModel
-      .find({ role })
+      .find(filter)
       .sort({ createdAt: -1 })
       .limit(limit)
       .select('-passwordHash')
       .exec();
+  }
+
+  /** ObjectIds of users matching name/email (optionally by role). */
+  async findIdsMatchingSearch(
+    search: string,
+    role?: Role,
+  ): Promise<Types.ObjectId[]> {
+    const trimmed = search.trim();
+    if (!trimmed) return [];
+
+    const q = escapeRegex(trimmed);
+    const filter: Record<string, unknown> = {
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+      ],
+    };
+    if (role) filter.role = role;
+
+    const users = await this.userModel
+      .find(filter)
+      .select('_id')
+      .limit(200)
+      .exec();
+    return users.map((u) => u._id as Types.ObjectId);
   }
 
   countByRole(role: Role): Promise<number> {
