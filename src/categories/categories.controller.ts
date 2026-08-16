@@ -16,10 +16,11 @@ export class CategoriesController {
   @Get()
   @ApiOperation({
     summary: 'List active categories',
-    description: 'Optional `search` matches name or description.',
+    description:
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.',
   })
   findAll(@Query() query: SearchQueryDto) {
-    return this.categoriesService.findAll(false, query.search);
+    return this.categoriesService.findAll(false, query);
   }
 
   @ApiBearerAuth()
@@ -27,10 +28,11 @@ export class CategoriesController {
   @Get('all')
   @ApiOperation({
     summary: 'List all categories including inactive (admin)',
-    description: 'Optional `search` matches name or description.',
+    description:
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.',
   })
   findAllAdmin(@Query() query: SearchQueryDto) {
-    return this.categoriesService.findAll(true, query.search);
+    return this.categoriesService.findAll(true, query);
   }
 
   @Public()

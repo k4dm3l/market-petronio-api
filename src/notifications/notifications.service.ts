@@ -1,6 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
 import { EMAIL_SENDER, EmailSender } from './email/email-sender.interface';
 import { EmailTemplatesService } from './email/email-templates.service';
 import {
@@ -362,23 +369,35 @@ export class NotificationsService {
     });
   }
 
-  async listForUser(userId: string) {
+  async listForUser(userId: string, query: CursorPaginationQueryDto = {}) {
+    const limit = resolveLimit(query.limit);
+    const filter: Record<string, unknown> = {
+      userId: new Types.ObjectId(userId),
+    };
+    applyCreatedAtIdCursor(filter, query.cursor);
+
     const rows = await this.notificationModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .sort({ createdAt: -1 })
-      .limit(50)
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
 
-    return rows.map((n) => ({
-      id: n.id,
-      orderId: n.orderId?.toString(),
-      channel: n.channel,
-      event: n.event,
-      subject: n.subject,
-      status: n.status,
-      error: n.error,
-      createdAt: (n as { createdAt?: Date }).createdAt,
-    }));
+    return paginateSlice(
+      rows,
+      limit,
+      (n) => ({
+        id: n.id,
+        orderId: n.orderId?.toString(),
+        channel: n.channel,
+        event: n.event,
+        subject: n.subject,
+        status: n.status,
+        error: n.error,
+        createdAt: (n as { createdAt?: Date }).createdAt,
+      }),
+      (n) =>
+        createdAtIdPayload(n as NotificationDocument & { createdAt?: Date }),
+    );
   }
 
   private async dispatch(params: {

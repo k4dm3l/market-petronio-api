@@ -21,6 +21,10 @@ export function buildOpenApiConfig() {
     )
     .addTag('cooks', 'Cook profiles and dashboard')
     .addTag('categories', 'Product categories')
+    .addTag(
+      'tags',
+      'Global product tag catalog (spec 009): admin create, public list + search',
+    )
     .addTag('admin', 'Admin statistics and moderation')
     .addTag(
       'notifications',

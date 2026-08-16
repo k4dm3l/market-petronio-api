@@ -10,12 +10,15 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  Max,
   Min,
   MinLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import {
+  CursorPaginationQueryDto,
+  PaginationMetaDto,
+} from '../../common/pagination/cursor-pagination.dto';
 import { DeliveryGeoPointDto } from '../../users/dto/delivery-information.dto';
 import {
   OrderStatus,
@@ -147,28 +150,7 @@ export class UpdateShippingDto {
   trackingNumber?: string;
 }
 
-export class ListOrdersQueryDto {
-  @ApiPropertyOptional({
-    example: 20,
-    default: 20,
-    description: 'Page size (max 50)',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit?: number;
-
-  @ApiPropertyOptional({
-    description:
-      'Opaque cursor from the previous page (do not pass customerId)',
-    example: 'eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ',
-  })
-  @IsOptional()
-  @IsString()
-  cursor?: string;
-}
+export class ListOrdersQueryDto extends CursorPaginationQueryDto {}
 
 export class CustomerOrderHistoryItemDto {
   @ApiProperty({ example: '68af1a2b3c4d5e6f78901234' })
@@ -187,23 +169,12 @@ export class CustomerOrderHistoryItemDto {
   createdAt: Date;
 }
 
-export class OrdersPaginationDto {
-  @ApiPropertyOptional({
-    nullable: true,
-    example: 'eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ',
-  })
-  nextCursor: string | null;
-
-  @ApiProperty({ example: true })
-  hasMore: boolean;
-}
-
 export class CustomerOrdersListResponseDto {
   @ApiProperty({ type: [CustomerOrderHistoryItemDto] })
   data: CustomerOrderHistoryItemDto[];
 
-  @ApiProperty({ type: OrdersPaginationDto })
-  pagination: OrdersPaginationDto;
+  @ApiProperty({ type: PaginationMetaDto })
+  pagination: PaginationMetaDto;
 }
 
 export class OrderItemResponseDto {

@@ -5,6 +5,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
 import { escapeRegex } from '../common/utils/escape-regex';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { Category, CategoryDocument } from './schemas/category.schema';
@@ -34,24 +41,39 @@ export class CategoriesService {
     return this.toResponse(category);
   }
 
-  async findAll(includeInactive = false, search?: string) {
+  async findAll(includeInactive = false, query: SearchQueryDto = {}) {
+    const limit = resolveLimit(query.limit);
     const filter: Record<string, unknown> = includeInactive
       ? {}
       : { isActive: true };
 
-    if (search?.trim()) {
-      const q = escapeRegex(search.trim());
+    if (query.search?.trim()) {
+      const q = escapeRegex(query.search.trim());
       filter.$or = [
         { name: { $regex: q, $options: 'i' } },
         { description: { $regex: q, $options: 'i' } },
       ];
     }
 
+    applyCreatedAtIdCursor(filter, query.cursor);
+
     const categories = await this.categoryModel
       .find(filter)
-      .sort({ name: 1 })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
-    return categories.map((c) => this.toResponse(c));
+
+    return paginateSlice(
+      categories,
+      limit,
+      (c) => this.toResponse(c),
+      (c) => createdAtIdPayload(c as CategoryDocument & { createdAt?: Date }),
+    );
+  }
+
+  async countAll(includeInactive = true): Promise<number> {
+    const filter = includeInactive ? {} : { isActive: true };
+    return this.categoryModel.countDocuments(filter).exec();
   }
 
   async findOne(id: string, includeInactive = false) {

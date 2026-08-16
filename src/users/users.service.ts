@@ -6,6 +6,13 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { escapeRegex } from '../common/utils/escape-regex';
 import { ImageService } from '../images/image.service';
 import { UpsertDeliveryInformationDto } from './dto/delivery-information.dto';
@@ -45,11 +52,11 @@ export class UsersService {
       .exec();
   }
 
-  listByRole(
+  async listByRole(
     role: Role,
-    options: { search?: string; limit?: number } = {},
-  ): Promise<UserDocument[]> {
-    const limit = options.limit ?? 100;
+    options: CursorPaginationQueryDto & { search?: string } = {},
+  ) {
+    const limit = resolveLimit(options.limit);
     const filter: Record<string, unknown> = { role };
 
     if (options.search?.trim()) {
@@ -60,12 +67,21 @@ export class UsersService {
       ];
     }
 
-    return this.userModel
+    applyCreatedAtIdCursor(filter, options.cursor);
+
+    const users = await this.userModel
       .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .select('-passwordHash')
       .exec();
+
+    return paginateSlice(
+      users,
+      limit,
+      (u) => u,
+      (u) => createdAtIdPayload(u as UserDocument & { createdAt?: Date }),
+    );
   }
 
   /** ObjectIds of users matching name/email (optionally by role). */

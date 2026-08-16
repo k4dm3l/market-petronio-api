@@ -14,6 +14,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { CursorPaginationQueryDto } from '../../common/pagination/cursor-pagination.dto';
 import { PaymentMethodType } from '../schemas/cook.schema';
 
 export class PaymentMethodDto {
@@ -152,7 +153,7 @@ export class UpdateCookDto {
   isActive?: boolean;
 }
 
-export class QueryCooksDto {
+export class QueryCooksDto extends CursorPaginationQueryDto {
   @ApiPropertyOptional({ example: 3.8833 })
   @IsOptional()
   @Type(() => Number)

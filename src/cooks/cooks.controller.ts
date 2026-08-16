@@ -29,7 +29,9 @@ export class CooksController {
   @Public()
   @Get()
   @ApiOperation({
-    summary: 'List active cooks (optional proximity: lat, lng, radius meters)',
+    summary:
+      'List active cooks (optional proximity: lat, lng, radius meters)',
+    description: 'Cursor pagination (`limit`, `cursor`).',
   })
   findAll(@Query() query: QueryCooksDto) {
     return this.cooksService.findAll(query);

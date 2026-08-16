@@ -331,9 +331,31 @@
     },
     "/api/notifications": {
       "get": {
-        "description": "Spec §12: emails on order created/confirmed/paid/shipped/delivered. Records are stored for history.",
+        "description": "Cursor pagination (`limit`, `cursor`). Spec §12: emails on order created/confirmed/paid/shipped/delivered.",
         "operationId": "NotificationsController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -352,8 +374,30 @@
     },
     "/api/cooks": {
       "get": {
+        "description": "Cursor pagination (`limit`, `cursor`).",
         "operationId": "CooksController_findAll",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "lat",
             "required": false,
@@ -516,9 +560,30 @@
     },
     "/api/products": {
       "get": {
-        "description": "Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity. Product `images` are `{ id, url }` objects.",
+        "description": "Cursor pagination (`limit`, `cursor`). Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity. Product `images` are `{ id, url }` objects.",
         "operationId": "ProductsController_findAll",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -637,7 +702,7 @@
         ]
       },
       "post": {
-        "description": "Supports `preparationTimeHours` and optional `tags`. Upload images via POST /products/:id/images after create (max 5).",
+        "description": "Supports `preparationTimeHours` and optional `tags` (must exist in GET /tags catalog; create tags via POST /tags as admin). Upload images via POST /products/:id/images after create (max 5).",
         "operationId": "ProductsController_create",
         "parameters": [],
         "requestBody": {
@@ -668,9 +733,30 @@
     },
     "/api/products/nearby": {
       "get": {
-        "description": "Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.",
+        "description": "Cursor pagination (`limit`, `cursor` encodes distance+product id). Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.",
         "operationId": "ProductsController_nearby",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "latitude",
             "required": true,
@@ -949,9 +1035,30 @@
     },
     "/api/categories": {
       "get": {
-        "description": "Optional `search` matches name or description.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.",
         "operationId": "CategoriesController_findAll",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1004,9 +1111,30 @@
     },
     "/api/categories/all": {
       "get": {
-        "description": "Optional `search` matches name or description.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.",
         "operationId": "CategoriesController_findAllAdmin",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1095,6 +1223,107 @@
         ]
       }
     },
+    "/api/tags": {
+      "get": {
+        "description": "Cursor pagination ordered by `text` ASC. Optional `search` (normalized) matches tag text. Spec 009.",
+        "operationId": "TagsController_findAll",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "schema": {
+              "example": "maría",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagsListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List tags (global catalog)",
+        "tags": [
+          "tags"
+        ]
+      },
+      "post": {
+        "description": "Normalizes text (trim + lowercase). Returns **201** when created, **200** when the tag already exists. Unique index on `text`.",
+        "operationId": "TagsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponseDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create tag (admin, idempotent)",
+        "tags": [
+          "tags"
+        ]
+      }
+    },
     "/api/orders": {
       "post": {
         "description": "Single-cook order. Stock is reserved for `available` products.\n\n**Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):\n\n- `source: CUSTOMER_PROFILE` — uses `PATCH /users/me/delivery-information`\n- `source: CUSTOM` — requires `location` (GeoJSON Point `[lng, lat]`) and `address`; `additionalInformation` optional",
@@ -1175,14 +1404,14 @@
         ]
       },
       "get": {
-        "description": "**Customers (spec 003)** — order history scoped to the JWT user id (never pass `customerId`).\nSupports cursor pagination: `?limit=20&cursor=...`.\n\nResponse for customers:\n`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }`\n\n**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in `data`).",
+        "description": "**Customers (spec 003)** — order history scoped to the JWT user id (never pass `customerId`).\nSupports cursor pagination: `?limit=20&cursor=...` (default 20, max 100).\n\nResponse for customers:\n`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }`\n\n**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in `data`).",
         "operationId": "OrdersController_findAll",
         "parameters": [
           {
             "name": "limit",
             "required": false,
             "in": "query",
-            "description": "Page size (max 50)",
+            "description": "Page size (1–100)",
             "schema": {
               "default": 20,
               "example": 20,
@@ -1193,9 +1422,9 @@
             "name": "cursor",
             "required": false,
             "in": "query",
-            "description": "Opaque cursor from the previous page (do not pass customerId)",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
             "schema": {
-              "example": "eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ",
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
               "type": "string"
             }
           }
@@ -1458,9 +1687,30 @@
     },
     "/api/admin/customers": {
       "get": {
-        "description": "Optional `search` matches name or email (case-insensitive).",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches name or email.",
         "operationId": "AdminController_listCustomers",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1529,9 +1779,30 @@
     },
     "/api/admin/cooks": {
       "get": {
-        "description": "Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.",
         "operationId": "AdminController_listCooks",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1600,8 +1871,31 @@
     },
     "/api/admin/products": {
       "get": {
+        "description": "Cursor pagination (`limit`, `cursor`).",
         "operationId": "AdminController_listProducts",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1659,9 +1953,30 @@
     },
     "/api/admin/orders": {
       "get": {
-        "description": "Optional `search` matches order number, status, payment method, or customer name/email.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches order number, status, payment method, or customer name/email.",
         "operationId": "AdminController_listOrders",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1691,9 +2006,30 @@
     },
     "/api/admin/categories": {
       "get": {
-        "description": "Optional `search` matches name or description.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.",
         "operationId": "AdminController_listCategories",
         "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
           {
             "name": "search",
             "required": false,
@@ -1920,6 +2256,10 @@
     {
       "name": "categories",
       "description": "Product categories"
+    },
+    {
+      "name": "tags",
+      "description": "Global product tag catalog (spec 009): admin create, public list + search"
     },
     {
       "name": "admin",
@@ -2424,7 +2764,7 @@
               "traditional",
               "pacific-food"
             ],
-            "description": "Normalized to lowercase/hyphenated; max 10; unique",
+            "description": "Must already exist in the global tag catalog (POST /tags). Normalized to lowercase; max 10; unique",
             "type": "array",
             "items": {
               "type": "string"
@@ -2497,7 +2837,7 @@
               "seafood",
               "shrimp"
             ],
-            "description": "Normalized to lowercase/hyphenated; max 10; unique",
+            "description": "Must already exist in the global tag catalog (POST /tags). Normalized to lowercase; max 10; unique",
             "type": "array",
             "items": {
               "type": "string"
@@ -2549,6 +2889,81 @@
             "description": "Admin activate/deactivate"
           }
         }
+      },
+      "TagResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234"
+          },
+          "text": {
+            "type": "string",
+            "example": "seafood"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-16T20:00:00.000Z"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-16T20:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ]
+      },
+      "PaginationMetaDto": {
+        "type": "object",
+        "properties": {
+          "nextCursor": {
+            "type": "object",
+            "nullable": true,
+            "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "hasMore"
+        ]
+      },
+      "TagsListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagResponseDto"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ]
+      },
+      "CreateTagDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "Seafood",
+            "maxLength": 50
+          }
+        },
+        "required": [
+          "text"
+        ]
       },
       "CreateOrderItemDto": {
         "type": "object",
@@ -2930,23 +3345,6 @@
           "createdAt"
         ]
       },
-      "OrdersPaginationDto": {
-        "type": "object",
-        "properties": {
-          "nextCursor": {
-            "type": "object",
-            "nullable": true,
-            "example": "eyJpZCI6IjY4YWYiLCJjcmVhdGVkQXQiOiIyMDI2LTA4LTE1VDEwOjAwOjAwLjAwMFoifQ"
-          },
-          "hasMore": {
-            "type": "boolean",
-            "example": true
-          }
-        },
-        "required": [
-          "hasMore"
-        ]
-      },
       "CustomerOrdersListResponseDto": {
         "type": "object",
         "properties": {
@@ -2957,7 +3355,7 @@
             }
           },
           "pagination": {
-            "$ref": "#/components/schemas/OrdersPaginationDto"
+            "$ref": "#/components/schemas/PaginationMetaDto"
           }
         },
         "required": [

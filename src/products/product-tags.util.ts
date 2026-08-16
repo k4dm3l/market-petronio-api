@@ -1,8 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { normalizeTagText } from '../tags/tag-text.util';
 
 const MAX_TAGS = 10;
 
-/** Spec 004 — lowercase + hyphenate; reject empties; max 10; unique */
+/** Spec 004/009 — normalize via tag catalog rules; max 10; unique */
 export function normalizeProductTags(raw: string[] | undefined): string[] {
   if (raw == null) return [];
   if (!Array.isArray(raw)) {
@@ -13,14 +14,14 @@ export function normalizeProductTags(raw: string[] | undefined): string[] {
   }
 
   const normalized = raw.map((tag, index) => {
-    if (typeof tag !== 'string') {
-      throw new BadRequestException(`tags[${index}] must be a string`);
+    try {
+      return normalizeTagText(tag);
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw new BadRequestException(`tags[${index}]: ${err.message}`);
+      }
+      throw err;
     }
-    const value = tag.trim().toLowerCase().replace(/\s+/g, '-');
-    if (!value) {
-      throw new BadRequestException('tags cannot contain empty strings');
-    }
-    return value;
   });
 
   return [...new Set(normalized)];

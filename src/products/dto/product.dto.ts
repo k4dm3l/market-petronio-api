@@ -16,6 +16,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { CursorPaginationQueryDto } from '../../common/pagination/cursor-pagination.dto';
 import { ProductAvailability } from '../schemas/product.schema';
 
 export class CreateProductDto {
@@ -86,7 +87,8 @@ export class CreateProductDto {
   @ApiPropertyOptional({
     type: [String],
     example: ['seafood', 'shrimp', 'traditional', 'pacific-food'],
-    description: 'Normalized to lowercase/hyphenated; max 10; unique',
+    description:
+      'Must already exist in the global tag catalog (POST /tags). Normalized to lowercase; max 10; unique',
   })
   @IsOptional()
   @IsArray()
@@ -153,7 +155,8 @@ export class UpdateProductDto {
   @ApiPropertyOptional({
     type: [String],
     example: ['seafood', 'shrimp'],
-    description: 'Normalized to lowercase/hyphenated; max 10; unique',
+    description:
+      'Must already exist in the global tag catalog (POST /tags). Normalized to lowercase; max 10; unique',
   })
   @IsOptional()
   @IsArray()
@@ -173,7 +176,7 @@ export class UpdateProductDto {
   isActive?: boolean;
 }
 
-export class QueryProductsDto {
+export class QueryProductsDto extends CursorPaginationQueryDto {
   @ApiPropertyOptional({ description: 'Case-insensitive name search' })
   @IsOptional()
   @IsString()
@@ -255,7 +258,7 @@ export class QueryProductsDto {
   radius?: number;
 }
 
-export class NearbyProductsDto {
+export class NearbyProductsDto extends CursorPaginationQueryDto {
   @ApiProperty({ example: 3.8833 })
   @Type(() => Number)
   @IsNumber()

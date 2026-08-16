@@ -3,6 +3,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CategoriesService } from '../categories/categories.service';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { CooksService } from '../cooks/cooks.service';
 import { Role } from '../common/enums/role.enum';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -35,7 +37,7 @@ export class AdminService {
       this.productsService.countAll(),
       this.ordersService.countAll(),
       this.ordersService.sumProcessedSales(),
-      this.categoriesService.findAll(true).then((c) => c.length),
+      this.categoriesService.countAll(true),
     ]);
 
     return {
@@ -48,18 +50,19 @@ export class AdminService {
     };
   }
 
-  async listCustomers(search?: string) {
-    const users = await this.usersService.listByRole(Role.Customer, {
-      search,
-    });
-    return users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      isActive: u.isActive,
-      createdAt: (u as { createdAt?: Date }).createdAt,
-    }));
+  async listCustomers(query: SearchQueryDto = {}) {
+    const page = await this.usersService.listByRole(Role.Customer, query);
+    return {
+      data: page.data.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        isActive: u.isActive,
+        createdAt: (u as { createdAt?: Date }).createdAt,
+      })),
+      pagination: page.pagination,
+    };
   }
 
   async setCustomerActive(userId: string, isActive: boolean) {
@@ -87,8 +90,8 @@ export class AdminService {
     };
   }
 
-  listCooks(search?: string) {
-    return this.cooksService.listAllForAdmin(100, search);
+  listCooks(query: SearchQueryDto = {}) {
+    return this.cooksService.listAllForAdmin(query);
   }
 
   async setCookActive(cookId: string, isActive: boolean) {
@@ -107,8 +110,8 @@ export class AdminService {
     return cook;
   }
 
-  listProducts() {
-    return this.productsService.listAllForAdmin();
+  listProducts(query: CursorPaginationQueryDto = {}) {
+    return this.productsService.listAllForAdmin(query);
   }
 
   async setProductActive(productId: string, isActive: boolean) {
@@ -131,11 +134,11 @@ export class AdminService {
     return product;
   }
 
-  listOrders(search?: string) {
-    return this.ordersService.listAllForAdmin(100, search);
+  listOrders(query: SearchQueryDto = {}) {
+    return this.ordersService.listAllForAdmin(query);
   }
 
-  listCategories(search?: string) {
-    return this.categoriesService.findAll(true, search);
+  listCategories(query: SearchQueryDto = {}) {
+    return this.categoriesService.findAll(true, query);
   }
 }

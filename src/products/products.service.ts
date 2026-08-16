@@ -11,7 +11,15 @@ import { CookDocument } from '../cooks/schemas/cook.schema';
 import { CategoriesService } from '../categories/categories.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { ImageService } from '../images/image.service';
+import { TagsService } from '../tags/tags.service';
 import {
   CreateProductDto,
   NearbyProductsDto,
@@ -34,6 +42,7 @@ export class ProductsService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     private readonly cooksService: CooksService,
     private readonly categoriesService: CategoriesService,
+    private readonly tagsService: TagsService,
     private readonly imageService: ImageService,
   ) {}
 
@@ -41,6 +50,9 @@ export class ProductsService {
     const cook = await this.resolveCookForCreate(actor, dto.cookId);
     this.assertAvailabilityRules(dto);
     await this.assertValidCategory(dto.categoryId);
+
+    const tags = normalizeProductTags(dto.tags);
+    await this.tagsService.assertTagsExist(tags);
 
     const product = await this.productModel.create({
       name: dto.name,
@@ -58,7 +70,7 @@ export class ProductsService {
         dto.availability === ProductAvailability.MadeToOrder
           ? (dto.minimumOrderQuantity ?? 1)
           : 1,
-      tags: normalizeProductTags(dto.tags),
+      tags,
       isAvailable: dto.isAvailable ?? true,
       isActive: true,
     });
@@ -84,21 +96,54 @@ export class ProductsService {
         tags: query.tags,
         minPrice: query.minPrice,
         maxPrice: query.maxPrice,
+        limit: query.limit,
+        cursor: query.cursor,
       });
     }
 
+    const limit = resolveLimit(query.limit);
     const filter = this.buildCatalogFilter(query);
-    const products = await this.productModel.find(filter).limit(50).exec();
-    return Promise.all(products.map((p) => this.toResponse(p)));
+    applyCreatedAtIdCursor(filter, query.cursor);
+
+    const products = await this.productModel
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .exec();
+
+    const page = paginateSlice(
+      products,
+      limit,
+      (p) => p,
+      (p) => createdAtIdPayload(p as ProductDocument & { createdAt?: Date }),
+    );
+    return {
+      data: await Promise.all(page.data.map((p) => this.toResponse(p))),
+      pagination: page.pagination,
+    };
   }
 
-  async listAllForAdmin(limit = 100) {
+  async listAllForAdmin(query: CursorPaginationQueryDto = {}) {
+    const limit = resolveLimit(query.limit);
+    const filter: Record<string, unknown> = {};
+    applyCreatedAtIdCursor(filter, query.cursor);
+
     const products = await this.productModel
-      .find()
-      .sort({ createdAt: -1 })
-      .limit(limit)
+      .find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
-    return Promise.all(products.map((p) => this.toResponse(p)));
+
+    const page = paginateSlice(
+      products,
+      limit,
+      (p) => p,
+      (p) => createdAtIdPayload(p as ProductDocument & { createdAt?: Date }),
+    );
+    return {
+      data: await Promise.all(page.data.map((p) => this.toResponse(p))),
+      pagination: page.pagination,
+    };
   }
 
   async countAll(): Promise<number> {
@@ -114,6 +159,7 @@ export class ProductsService {
   }
 
   async findNearby(query: NearbyProductsDto) {
+    const limit = resolveLimit(query.limit);
     const radius = query.radius ?? 10000;
     const productMatch: Record<string, unknown> = {
       'products.isActive': true,
@@ -140,17 +186,26 @@ export class ProductsService {
       query.latitude,
       radius,
       productMatch,
+      { limit: limit + 1, cursor: query.cursor },
     );
 
-    return rows.map((row) => ({
-      ...this.mapProductLean(row.products),
-      cook: {
-        id: String(row._id),
-        displayName: row.displayName,
-        publicLocation: row.publicLocation,
-      },
-      distanceMeters: Math.round(row.distance),
-    }));
+    return paginateSlice(
+      rows,
+      limit,
+      (row) => ({
+        ...this.mapProductLean(row.products),
+        cook: {
+          id: String(row._id),
+          displayName: row.displayName,
+          publicLocation: row.publicLocation,
+        },
+        distanceMeters: Math.round(row.distance),
+      }),
+      (row) => ({
+        distance: row.distance,
+        id: String(row.products._id),
+      }),
+    );
   }
 
   async findOne(id: string) {
@@ -194,7 +249,9 @@ export class ProductsService {
       product.minimumOrderQuantity = dto.minimumOrderQuantity;
     }
     if (dto.tags !== undefined) {
-      product.tags = normalizeProductTags(dto.tags);
+      const tags = normalizeProductTags(dto.tags);
+      await this.tagsService.assertTagsExist(tags);
+      product.tags = tags;
     }
     if (dto.isAvailable !== undefined) product.isAvailable = dto.isAvailable;
     if (dto.isActive !== undefined) product.isActive = dto.isActive;

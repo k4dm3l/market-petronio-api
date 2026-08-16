@@ -21,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { TagsModule } from './tags/tags.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { RedisModule } from './redis/redis.module';
     NotificationsModule,
     AdminModule,
     HealthModule,
+    TagsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { SearchQueryDto } from '../common/dto/search-query.dto';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { Role } from '../common/enums/role.enum';
 import { AdminService } from './admin.service';
 import { SetActiveDto } from './dto/set-active.dto';
@@ -25,10 +26,11 @@ export class AdminController {
   @Get('customers')
   @ApiOperation({
     summary: 'List customers',
-    description: 'Optional `search` matches name or email (case-insensitive).',
+    description:
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches name or email.',
   })
   listCustomers(@Query() query: SearchQueryDto) {
-    return this.adminService.listCustomers(query.search);
+    return this.adminService.listCustomers(query);
   }
 
   @Patch('customers/:id')
@@ -41,10 +43,10 @@ export class AdminController {
   @ApiOperation({
     summary: 'List all cooks (including inactive)',
     description:
-      'Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.',
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.',
   })
   listCooks(@Query() query: SearchQueryDto) {
-    return this.adminService.listCooks(query.search);
+    return this.adminService.listCooks(query);
   }
 
   @Patch('cooks/:id')
@@ -54,9 +56,12 @@ export class AdminController {
   }
 
   @Get('products')
-  @ApiOperation({ summary: 'Review all products (including inactive)' })
-  listProducts() {
-    return this.adminService.listProducts();
+  @ApiOperation({
+    summary: 'Review all products (including inactive)',
+    description: 'Cursor pagination (`limit`, `cursor`).',
+  })
+  listProducts(@Query() query: CursorPaginationQueryDto) {
+    return this.adminService.listProducts(query);
   }
 
   @Patch('products/:id')
@@ -69,18 +74,19 @@ export class AdminController {
   @ApiOperation({
     summary: 'Review all orders',
     description:
-      'Optional `search` matches order number, status, payment method, or customer name/email.',
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches order number, status, payment method, or customer name/email.',
   })
   listOrders(@Query() query: SearchQueryDto) {
-    return this.adminService.listOrders(query.search);
+    return this.adminService.listOrders(query);
   }
 
   @Get('categories')
   @ApiOperation({
     summary: 'List all categories (including inactive)',
-    description: 'Optional `search` matches name or description.',
+    description:
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches name or description.',
   })
   listCategories(@Query() query: SearchQueryDto) {
-    return this.adminService.listCategories(query.search);
+    return this.adminService.listCategories(query);
   }
 }

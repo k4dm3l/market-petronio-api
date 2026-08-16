@@ -45,7 +45,7 @@ export class ProductsController {
     summary:
       'List products (search, category, cook, price, availability, tags AND, optional lat/lng/radius)',
     description:
-      'Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity. Product `images` are `{ id, url }` objects.',
+      'Cursor pagination (`limit`, `cursor`). Query `tags=seafood,shrimp` uses AND semantics. Pass `lat`+`lng` (+ optional `radius`) to filter by cook proximity. Product `images` are `{ id, url }` objects.',
   })
   findAll(@Query() query: QueryProductsDto) {
     return this.productsService.findAll(query);
@@ -57,7 +57,7 @@ export class ProductsController {
     summary:
       'Products near a geo point (tags AND, category, price; sorted by cook distance)',
     description:
-      'Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.',
+      'Cursor pagination (`limit`, `cursor` encodes distance+product id). Requires `latitude` and `longitude`. Optional `tags` (comma-separated, AND), `categoryId`, `minPrice`/`maxPrice`.',
   })
   nearby(@Query() query: NearbyProductsDto) {
     return this.productsService.findNearby(query);
@@ -79,7 +79,7 @@ export class ProductsController {
     summary:
       'Create product (cook: own catalog; admin: must pass cookId)',
     description:
-      'Supports `preparationTimeHours` and optional `tags`. Upload images via POST /products/:id/images after create (max 5).',
+      'Supports `preparationTimeHours` and optional `tags` (must exist in GET /tags catalog; create tags via POST /tags as admin). Upload images via POST /products/:id/images after create (max 5).',
   })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
     return this.productsService.create(user, dto);

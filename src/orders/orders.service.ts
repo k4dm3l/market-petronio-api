@@ -9,6 +9,13 @@ import { Model, Types } from 'mongoose';
 import { CooksService } from '../cooks/cooks.service';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { emptyPage } from '../common/pagination/paginated-response';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
 import { escapeRegex } from '../common/utils/escape-regex';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -43,7 +50,6 @@ const ORDER_STATUS_FLOW: OrderStatus[] = [
   OrderStatus.Delivered,
 ];
 
-type OrderCursor = { id: string; createdAt: string };
 @Injectable()
 export class OrdersService {
   constructor(
@@ -205,7 +211,7 @@ export class OrdersService {
     if (actor.role === Role.Cook) {
       const cook = await this.cooksService.findByUserId(actor.id);
       if (!cook) {
-        return { data: [], pagination: { nextCursor: null, hasMore: false } };
+        return emptyPage();
       }
       filter.cookId = cook._id;
     }
@@ -235,75 +241,13 @@ export class OrdersService {
     });
   }
 
-  private async listWithCursor<T>(
-    baseFilter: Record<string, unknown>,
-    query: ListOrdersQueryDto,
-    mapItem: (order: OrderDocument) => T,
-  ) {
-    const limit = Math.min(Math.max(query.limit ?? 20, 1), 50);
-    const filter: Record<string, unknown> = { ...baseFilter };
-
-    if (query.cursor) {
-      const decoded = this.decodeCursor(query.cursor);
-      const cursorDate = new Date(decoded.createdAt);
-      const cursorId = new Types.ObjectId(decoded.id);
-      filter.$or = [
-        { createdAt: { $lt: cursorDate } },
-        { createdAt: cursorDate, _id: { $lt: cursorId } },
-      ];
-    }
-
-    const rows = await this.orderModel
-      .find(filter)
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
-
-    const hasMore = rows.length > limit;
-    const page = hasMore ? rows.slice(0, limit) : rows;
-    const last = page[page.length - 1] as
-      | (OrderDocument & { createdAt?: Date })
-      | undefined;
-
-    const nextCursor =
-      hasMore && last
-        ? this.encodeCursor({
-            id: last.id,
-            createdAt: (last.createdAt ?? new Date()).toISOString(),
-          })
-        : null;
-
-    return {
-      data: page.map(mapItem),
-      pagination: { nextCursor, hasMore },
-    };
-  }
-
-  private encodeCursor(payload: OrderCursor): string {
-    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  }
-
-  private decodeCursor(cursor: string): OrderCursor {
-    try {
-      const parsed = JSON.parse(
-        Buffer.from(cursor, 'base64url').toString('utf8'),
-      ) as OrderCursor;
-      if (!parsed?.id || !parsed?.createdAt || !Types.ObjectId.isValid(parsed.id)) {
-        throw new Error('invalid');
-      }
-      return parsed;
-    } catch {
-      throw new BadRequestException('Invalid pagination cursor');
-    }
-  }
-
-  async listAllForAdmin(limit = 100, search?: string) {
+  async listAllForAdmin(query: ListOrdersQueryDto & { search?: string } = {}) {
     const filter: Record<string, unknown> = {};
 
-    if (search?.trim()) {
-      const q = escapeRegex(search.trim());
+    if (query.search?.trim()) {
+      const q = escapeRegex(query.search.trim());
       const customerIds = await this.usersService.findIdsMatchingSearch(
-        search,
+        query.search,
         Role.Customer,
       );
       const or: Record<string, unknown>[] = [
@@ -314,15 +258,30 @@ export class OrdersService {
       if (customerIds.length) {
         or.push({ customerId: { $in: customerIds } });
       }
-      filter.$or = or;
+      filter.$and = [{ $or: or }];
     }
 
-    const orders = await this.orderModel
+    return this.listWithCursor(filter, query, (o) => this.toResponse(o));
+  }
+
+  private async listWithCursor<T>(
+    baseFilter: Record<string, unknown>,
+    query: ListOrdersQueryDto,
+    mapItem: (order: OrderDocument) => T,
+  ) {
+    const limit = resolveLimit(query.limit);
+    const filter: Record<string, unknown> = { ...baseFilter };
+    applyCreatedAtIdCursor(filter, query.cursor);
+
+    const rows = await this.orderModel
       .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
-    return orders.map((o) => this.toResponse(o));
+
+    return paginateSlice(rows, limit, mapItem, (doc) =>
+      createdAtIdPayload(doc as OrderDocument & { createdAt?: Date }),
+    );
   }
 
   async countAll(): Promise<number> {

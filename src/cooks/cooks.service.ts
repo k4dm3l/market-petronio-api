@@ -5,9 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
+import {
+  applyCreatedAtIdCursor,
+  createdAtIdPayload,
+  decodeDistanceCursor,
+  paginateSlice,
+  resolveLimit,
+} from '../common/pagination/cursor.util';
 import { escapeRegex } from '../common/utils/escape-regex';
 import {
   Order,
@@ -73,9 +81,11 @@ export class CooksService {
   }
 
   async findAll(query: QueryCooksDto) {
+    const limit = resolveLimit(query.limit);
     const filter: Record<string, unknown> = { isActive: true };
+    const useGeo = query.lat != null && query.lng != null;
 
-    if (query.lat != null && query.lng != null) {
+    if (useGeo) {
       const radius = query.radius ?? 10000;
       filter.location = {
         $near: {
@@ -86,19 +96,34 @@ export class CooksService {
           $maxDistance: radius,
         },
       };
+    } else {
+      applyCreatedAtIdCursor(filter, query.cursor);
     }
 
-    const cooks = await this.cookModel.find(filter).limit(50).exec();
-    return cooks.map((c) => this.toPublicView(c));
+    let q = this.cookModel.find(filter).limit(limit + 1);
+    if (!useGeo) {
+      q = q.sort({ createdAt: -1, _id: -1 });
+    }
+    const cooks = await q.exec();
+
+    return paginateSlice(
+      cooks,
+      limit,
+      (c) => this.toPublicView(c),
+      (c) => createdAtIdPayload(c as CookDocument & { createdAt?: Date }),
+    );
   }
 
-  async listAllForAdmin(limit = 100, search?: string) {
+  async listAllForAdmin(
+    query: CursorPaginationQueryDto & { search?: string } = {},
+  ) {
+    const limit = resolveLimit(query.limit);
     const filter: Record<string, unknown> = {};
 
-    if (search?.trim()) {
-      const q = escapeRegex(search.trim());
+    if (query.search?.trim()) {
+      const q = escapeRegex(query.search.trim());
       const userIds = await this.usersService.findIdsMatchingSearch(
-        search,
+        query.search,
         Role.Cook,
       );
       const or: Record<string, unknown>[] = [
@@ -114,12 +139,20 @@ export class CooksService {
       filter.$or = or;
     }
 
+    applyCreatedAtIdCursor(filter, query.cursor);
+
     const cooks = await this.cookModel
       .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
       .exec();
-    return cooks.map((c) => this.toOwnerView(c));
+
+    return paginateSlice(
+      cooks,
+      limit,
+      (c) => this.toOwnerView(c),
+      (c) => createdAtIdPayload(c as CookDocument & { createdAt?: Date }),
+    );
   }
 
   async countActive(): Promise<number> {
@@ -234,44 +267,67 @@ export class CooksService {
     lat: number,
     maxDistanceMeters: number,
     productMatch: Record<string, unknown>,
+    pagination: { limit: number; cursor?: string },
   ) {
+    const pipeline: PipelineStage[] = [
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [lng, lat] },
+          distanceField: 'distance',
+          maxDistance: maxDistanceMeters,
+          spherical: true,
+          query: { isActive: true },
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id',
+          foreignField: 'cookId',
+          as: 'products',
+        },
+      },
+      { $unwind: '$products' },
+      { $match: productMatch },
+    ];
+
+    if (pagination.cursor) {
+      const decoded = decodeDistanceCursor(pagination.cursor);
+      const productId = new Types.ObjectId(decoded.id);
+      pipeline.push({
+        $match: {
+          $or: [
+            { distance: { $gt: decoded.distance } },
+            {
+              distance: decoded.distance,
+              'products._id': { $gt: productId },
+            },
+          ],
+        },
+      });
+    }
+
+    pipeline.push(
+      { $sort: { distance: 1, 'products._id': 1 } },
+      { $limit: pagination.limit },
+      {
+        $project: {
+          displayName: 1,
+          publicLocation: 1,
+          distance: 1,
+          products: 1,
+        },
+      },
+    );
+
     return this.cookModel
       .aggregate<{
         _id: Types.ObjectId;
         displayName: string;
         publicLocation: string;
         distance: number;
-        products: Record<string, unknown>;
-      }>([
-        {
-          $geoNear: {
-            near: { type: 'Point', coordinates: [lng, lat] },
-            distanceField: 'distance',
-            maxDistance: maxDistanceMeters,
-            spherical: true,
-            query: { isActive: true },
-          },
-        },
-        {
-          $lookup: {
-            from: 'products',
-            localField: '_id',
-            foreignField: 'cookId',
-            as: 'products',
-          },
-        },
-        { $unwind: '$products' },
-        { $match: productMatch },
-        { $limit: 50 },
-        {
-          $project: {
-            displayName: 1,
-            publicLocation: 1,
-            distance: 1,
-            products: 1,
-          },
-        },
-      ])
+        products: Record<string, unknown> & { _id: Types.ObjectId };
+      }>(pipeline)
       .exec();
   }
 
