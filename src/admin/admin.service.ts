@@ -8,6 +8,7 @@ import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination
 import { CooksService } from '../cooks/cooks.service';
 import { Role } from '../common/enums/role.enum';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ListOrdersQueryDto } from '../orders/dto/order.dto';
 import { OrdersService } from '../orders/orders.service';
 import { ProductsService } from '../products/products.service';
 import { UsersService } from '../users/users.service';
@@ -134,7 +135,7 @@ export class AdminService {
     return product;
   }
 
-  listOrders(query: SearchQueryDto = {}) {
+  listOrders(query: ListOrdersQueryDto = {}) {
     return this.ordersService.listAllForAdmin(query);
   }
 

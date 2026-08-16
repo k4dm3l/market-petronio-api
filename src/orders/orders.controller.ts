@@ -95,6 +95,7 @@ Single-cook order. Stock is reserved for \`available\` products.
     description: `
 **Customers (spec 003)** — order history scoped to the JWT user id (never pass \`customerId\`).
 Supports cursor pagination: \`?limit=20&cursor=...\` (default 20, max 100).
+Optional \`status\` filters by exact order status. Optional \`search\` matches order number / payment method (admins also match customer name/email).
 
 Response for customers:
 \`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }\`

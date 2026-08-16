@@ -202,7 +202,7 @@ export class OrdersService {
   }
 
   async findAll(actor: AuthUser, query: ListOrdersQueryDto = {}) {
-    // Spec 003: customers only see their own history (JWT id, never query customerId)
+    // Spec 003: customers only see their own history (JWT id, never pass customerId)
     if (actor.role === Role.Customer) {
       return this.listCustomerHistory(actor.id, query);
     }
@@ -216,6 +216,14 @@ export class OrdersService {
       filter.cookId = cook._id;
     }
 
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    await this.applyOrderSearchFilter(filter, query.search, {
+      includeCustomerName: actor.role === Role.Admin,
+    });
+
     return this.listWithCursor(filter, query, (o) => this.toResponse(o));
   }
 
@@ -227,6 +235,14 @@ export class OrdersService {
     const filter: Record<string, unknown> = {
       customerId: new Types.ObjectId(customerId),
     };
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    await this.applyOrderSearchFilter(filter, query.search, {
+      includeCustomerName: false,
+    });
 
     return this.listWithCursor(filter, query, (o) => {
       const createdAt =
@@ -241,27 +257,47 @@ export class OrdersService {
     });
   }
 
-  async listAllForAdmin(query: ListOrdersQueryDto & { search?: string } = {}) {
+  async listAllForAdmin(query: ListOrdersQueryDto = {}) {
     const filter: Record<string, unknown> = {};
+    if (query.status) {
+      filter.status = query.status;
+    }
+    await this.applyOrderSearchFilter(filter, query.search, {
+      includeCustomerName: true,
+    });
+    return this.listWithCursor(filter, query, (o) => this.toResponse(o));
+  }
 
-    if (query.search?.trim()) {
-      const q = escapeRegex(query.search.trim());
+  /** Free-text search on order number / payment method / optional customer name. */
+  private async applyOrderSearchFilter(
+    filter: Record<string, unknown>,
+    search: string | undefined,
+    options: { includeCustomerName: boolean },
+  ): Promise<void> {
+    if (!search?.trim()) return;
+
+    const trimmed = search.trim();
+    const q = escapeRegex(trimmed);
+
+    const or: Record<string, unknown>[] = [
+      { orderNumber: { $regex: q, $options: 'i' } },
+      { 'payment.method': { $regex: q, $options: 'i' } },
+    ];
+
+    if (options.includeCustomerName) {
       const customerIds = await this.usersService.findIdsMatchingSearch(
-        query.search,
+        trimmed,
         Role.Customer,
       );
-      const or: Record<string, unknown>[] = [
-        { orderNumber: { $regex: q, $options: 'i' } },
-        { status: { $regex: q, $options: 'i' } },
-        { 'payment.method': { $regex: q, $options: 'i' } },
-      ];
       if (customerIds.length) {
         or.push({ customerId: { $in: customerIds } });
       }
-      filter.$and = [{ $or: or }];
     }
 
-    return this.listWithCursor(filter, query, (o) => this.toResponse(o));
+    filter.$and = [
+      ...((filter.$and as Record<string, unknown>[]) ?? []),
+      { $or: or },
+    ];
   }
 
   private async listWithCursor<T>(

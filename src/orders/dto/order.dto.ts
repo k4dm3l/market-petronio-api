@@ -10,6 +10,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
   ValidateIf,
@@ -150,7 +151,26 @@ export class UpdateShippingDto {
   trackingNumber?: string;
 }
 
-export class ListOrdersQueryDto extends CursorPaginationQueryDto {}
+export class ListOrdersQueryDto extends CursorPaginationQueryDto {
+  @ApiPropertyOptional({
+    enum: OrderStatus,
+    example: OrderStatus.Pending,
+    description: 'Filter by exact order status',
+  })
+  @IsOptional()
+  @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  @ApiPropertyOptional({
+    example: 'ORD-1001',
+    description:
+      'Case-insensitive text search: order number, payment method, or (admin) customer name/email. Use `status` to filter by order status.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+}
 
 export class CustomerOrderHistoryItemDto {
   @ApiProperty({ example: '68af1a2b3c4d5e6f78901234' })

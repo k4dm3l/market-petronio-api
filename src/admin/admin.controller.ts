@@ -4,6 +4,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { SearchQueryDto } from '../common/dto/search-query.dto';
 import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { Role } from '../common/enums/role.enum';
+import { ListOrdersQueryDto } from '../orders/dto/order.dto';
 import { AdminService } from './admin.service';
 import { SetActiveDto } from './dto/set-active.dto';
 
@@ -74,9 +75,9 @@ export class AdminController {
   @ApiOperation({
     summary: 'Review all orders',
     description:
-      'Cursor pagination (`limit`, `cursor`). Optional `search` matches order number, status, payment method, or customer name/email.',
+      'Cursor pagination (`limit`, `cursor`). Optional `status` (exact order status). Optional `search` matches order number, payment method, or customer name/email.',
   })
-  listOrders(@Query() query: SearchQueryDto) {
+  listOrders(@Query() query: ListOrdersQueryDto) {
     return this.adminService.listOrders(query);
   }
 
