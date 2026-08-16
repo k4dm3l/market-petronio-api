@@ -17,6 +17,7 @@ import {
   ApiConsumes,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -109,6 +110,11 @@ export class ProductsController {
     summary: 'Delete a product image by id',
     description:
       'Deletes Cloudinary asset + images collection row. If ASSOCIATED, also removes the subdoc from the product. Must be the uploader (or admin).',
+  })
+  @ApiParam({
+    name: 'imageId',
+    example: '68af1a2b3c4d5e6f78901234',
+    description: 'Id returned by POST /products/images',
   })
   @ApiOkResponse({ type: ImageDeletedResponseDto })
   removeImage(

@@ -191,7 +191,7 @@
     },
     "/api/users/me": {
       "get": {
-        "description": "Includes `image` (`{ url }`) and `deliveryInformation` when set.",
+        "description": "Includes `image` (`{ url }`), `addresses`, and legacy `deliveryInformation` when set.",
         "operationId": "UsersController_getMe",
         "parameters": [],
         "responses": {
@@ -217,9 +217,131 @@
         ]
       }
     },
+    "/api/users/me/addresses": {
+      "post": {
+        "description": "First address is always primary. Setting `isPrimary: true` demotes any previous primary atomically.",
+        "operationId": "UsersController_createAddress",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a saved address",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/me/addresses/{addressId}": {
+      "patch": {
+        "description": "Updates fields on the authenticated user's address by `addressId`. Setting `isPrimary: true` demotes other primaries atomically. Unsetting the only primary returns 400.",
+        "operationId": "UsersController_updateAddress",
+        "parameters": [
+          {
+            "name": "addressId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "01K2ABC...",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Partially update a saved address",
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "description": "Removes the address by id. If the deleted address was primary and others remain, the first remaining address becomes primary.",
+        "operationId": "UsersController_deleteAddress",
+        "parameters": [
+          {
+            "name": "addressId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "01K2ABC...",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a saved address",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/users/me/delivery-information": {
       "patch": {
-        "description": "Single default address for MVP. Used when creating orders with `delivery.source = CUSTOMER_PROFILE`.",
+        "description": "Single default address for MVP. Prefer `POST /users/me/addresses`. Still used when creating orders with `delivery.source = CUSTOMER_PROFILE` if no saved addresses exist.",
         "operationId": "UsersController_upsertDelivery",
         "parameters": [],
         "requestBody": {
@@ -249,7 +371,7 @@
             "bearer": []
           }
         ],
-        "summary": "Set or replace default delivery information",
+        "summary": "Set or replace default delivery information (legacy)",
         "tags": [
           "users"
         ]
@@ -702,7 +824,7 @@
         ]
       },
       "post": {
-        "description": "Supports `preparationTimeHours` and optional `tags` (must exist in GET /tags catalog; create tags via POST /tags as admin). Upload images via POST /products/:id/images after create (max 5).",
+        "description": "Optional `images`: ids from POST /products/images. Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.",
         "operationId": "ProductsController_create",
         "parameters": [],
         "requestBody": {
@@ -837,9 +959,96 @@
         ]
       }
     },
+    "/api/products/images": {
+      "post": {
+        "description": "multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Persists a TEMPORARY image; pass returned `id` in `POST /products` `images`. Max 5 images per product on create.",
+        "operationId": "ProductsController_uploadImages",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, or WEBP image (max 5 MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Persisted temporary image(s)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImagesUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload a product image (no product required)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/images/{imageId}": {
+      "delete": {
+        "description": "Deletes Cloudinary asset + images collection row. If ASSOCIATED, also removes the subdoc from the product. Must be the uploader (or admin).",
+        "operationId": "ProductsController_removeImage",
+        "parameters": [
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "description": "Id returned by POST /products/images",
+            "schema": {
+              "example": "68af1a2b3c4d5e6f78901234",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDeletedResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a product image by id",
+        "tags": [
+          "products"
+        ]
+      }
+    },
     "/api/products/{id}": {
       "get": {
-        "description": "Images are `{ id, url }` (upload via POST /products/:id/images).",
+        "description": "Images are `{ id, url }`. Upload via POST /products/images before create.",
         "operationId": "ProductsController_findOne",
         "parameters": [
           {
@@ -926,108 +1135,6 @@
           }
         ],
         "summary": "Soft-delete product (owner cook or admin)",
-        "tags": [
-          "products"
-        ]
-      }
-    },
-    "/api/products/{id}/images": {
-      "post": {
-        "description": "multipart field `file`. JPEG/PNG/WEBP, max 5 MB. Owner cook or admin only. Returns `{ id, url }`.",
-        "operationId": "ProductsController_uploadImage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "JPEG, PNG, or WEBP image (max 5 MB)"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Uploaded image id and public URL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProductImageUploadResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Upload a product image (max 5 per product)",
-        "tags": [
-          "products"
-        ]
-      }
-    },
-    "/api/products/{id}/images/{imageId}": {
-      "delete": {
-        "description": "Removes the Cloudinary asset and the image subdocument. `imageId` comes from product.images[].id.",
-        "operationId": "ProductsController_removeImage",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "imageId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImageDeletedResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Delete a product image",
         "tags": [
           "products"
         ]
@@ -1326,7 +1433,7 @@
     },
     "/api/orders": {
       "post": {
-        "description": "Single-cook order. Stock is reserved for `available` products.\n\n**Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):\n\n- `source: CUSTOMER_PROFILE` — uses `PATCH /users/me/delivery-information`\n- `source: CUSTOM` — requires `location` (GeoJSON Point `[lng, lat]`) and `address`; `additionalInformation` optional",
+        "description": "Single-cook order. Stock is reserved for `available` products.\n\n**Delivery (required)** — copied onto the order at create time (profile changes later do not affect this order):\n\n- `source: CUSTOMER_PROFILE` — primary saved address (or `addressId`); falls back to legacy deliveryInformation\n- `source: CUSTOM` — requires `location` (GeoJSON Point `[lng, lat]`) and `address`; `additionalInformation` optional",
         "operationId": "OrdersController_create",
         "parameters": [],
         "requestBody": {
@@ -1338,7 +1445,7 @@
               },
               "examples": {
                 "customerProfile": {
-                  "summary": "Use saved customer delivery",
+                  "summary": "Use primary saved address",
                   "value": {
                     "cookId": "507f1f77bcf86cd799439011",
                     "items": [
@@ -1349,6 +1456,23 @@
                     ],
                     "delivery": {
                       "source": "CUSTOMER_PROFILE"
+                    },
+                    "paymentMethod": "nequi"
+                  }
+                },
+                "savedAddress": {
+                  "summary": "Use a specific saved address",
+                  "value": {
+                    "cookId": "507f1f77bcf86cd799439011",
+                    "items": [
+                      {
+                        "productId": "507f1f77bcf86cd799439012",
+                        "quantity": 2
+                      }
+                    ],
+                    "delivery": {
+                      "source": "CUSTOMER_PROFILE",
+                      "addressId": "01K2ABC..."
                     },
                     "paymentMethod": "nequi"
                   }
@@ -1404,7 +1528,7 @@
         ]
       },
       "get": {
-        "description": "**Customers (spec 003)** — order history scoped to the JWT user id (never pass `customerId`).\nSupports cursor pagination: `?limit=20&cursor=...` (default 20, max 100).\n\nResponse for customers:\n`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }`\n\n**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in `data`).",
+        "description": "**Customers (spec 003)** — order history scoped to the JWT user id (never pass `customerId`).\nSupports cursor pagination: `?limit=20&cursor=...` (default 20, max 100).\nOptional `status` filters by exact order status. Optional `search` matches order number / payment method (admins also match customer name/email).\n\nResponse for customers:\n`{ data: [{ id, status, paymentStatus, total, createdAt }], pagination: { nextCursor, hasMore } }`\n\n**Cooks / admins** — same pagination shape; cooks only see orders for their cook profile (full order objects in `data`).",
         "operationId": "OrdersController_findAll",
         "parameters": [
           {
@@ -1425,6 +1549,35 @@
             "description": "Opaque cursor from the previous page `pagination.nextCursor`",
             "schema": {
               "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by exact order status",
+            "schema": {
+              "example": "PENDING",
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "PREPARING",
+                "READY_TO_SHIP",
+                "SHIPPED",
+                "DELIVERED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Case-insensitive text search: order number, payment method, or (admin) customer name/email. Use `status` to filter by order status.",
+            "schema": {
+              "example": "ORD-1001",
               "type": "string"
             }
           }
@@ -1953,7 +2106,7 @@
     },
     "/api/admin/orders": {
       "get": {
-        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches order number, status, payment method, or customer name/email.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `status` (exact order status). Optional `search` matches order number, payment method, or customer name/email.",
         "operationId": "AdminController_listOrders",
         "parameters": [
           {
@@ -1978,12 +2131,31 @@
             }
           },
           {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by exact order status",
+            "schema": {
+              "example": "PENDING",
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "PREPARING",
+                "READY_TO_SHIP",
+                "SHIPPED",
+                "DELIVERED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
             "name": "search",
             "required": false,
             "in": "query",
-            "description": "Case-insensitive partial text match (fields depend on the resource).",
+            "description": "Case-insensitive text search: order number, payment method, or (admin) customer name/email. Use `status` to filter by order status.",
             "schema": {
-              "example": "maría",
+              "example": "ORD-1001",
               "type": "string"
             }
           }
@@ -2239,11 +2411,11 @@
     },
     {
       "name": "users",
-      "description": "Customer profile, delivery info, and profile image uploads"
+      "description": "Customer profile, saved addresses (spec 010), and profile image uploads"
     },
     {
       "name": "products",
-      "description": "Catalog, filters, nearby search, and product image uploads (spec 006)"
+      "description": "Catalog, filters, nearby search, and pre-create product image uploads (spec 011)"
     },
     {
       "name": "orders",
@@ -2482,6 +2654,55 @@
           "address"
         ]
       },
+      "UserAddressResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "01K2ABC..."
+          },
+          "country": {
+            "type": "string",
+            "example": "Colombia"
+          },
+          "department": {
+            "type": "string",
+            "example": "Valle del Cauca"
+          },
+          "city": {
+            "type": "string",
+            "example": "Buenaventura"
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20"
+          },
+          "notes": {
+            "type": "string",
+            "example": "Casa azul, next to the bakery"
+          },
+          "zipcode": {
+            "type": "string",
+            "example": "764501"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/DeliveryGeoPointDto"
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "id",
+          "country",
+          "department",
+          "city",
+          "address",
+          "coordinates",
+          "isPrimary"
+        ]
+      },
       "UserMeResponseDto": {
         "type": "object",
         "properties": {
@@ -2520,13 +2741,20 @@
           },
           "deliveryInformation": {
             "nullable": true,
-            "description": "Default delivery info used with orders source=CUSTOMER_PROFILE",
+            "description": "Legacy single delivery (spec 005). Prefer `addresses` for new clients.",
             "type": "object",
             "allOf": [
               {
                 "$ref": "#/components/schemas/DeliveryInformationResponseDto"
               }
             ]
+          },
+          "addresses": {
+            "description": "Saved addresses; at most one is primary (spec 010)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAddressResponseDto"
+            }
           }
         },
         "required": [
@@ -2534,8 +2762,100 @@
           "email",
           "name",
           "role",
-          "isActive"
+          "isActive",
+          "addresses"
         ]
+      },
+      "CreateAddressDto": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string",
+            "example": "Colombia"
+          },
+          "department": {
+            "type": "string",
+            "example": "Valle del Cauca"
+          },
+          "city": {
+            "type": "string",
+            "example": "Buenaventura"
+          },
+          "address": {
+            "type": "string",
+            "example": "Calle 5 #10-20"
+          },
+          "notes": {
+            "type": "string",
+            "example": "Casa azul, next to the bakery"
+          },
+          "zipcode": {
+            "type": "string",
+            "example": "764501"
+          },
+          "coordinates": {
+            "description": "GeoJSON Point [longitude, latitude]",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryGeoPointDto"
+              }
+            ]
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "example": true,
+            "description": "If true (or if this is the first address), demotes any previous primary"
+          }
+        },
+        "required": [
+          "country",
+          "department",
+          "city",
+          "address",
+          "coordinates"
+        ]
+      },
+      "UpdateAddressDto": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string",
+            "example": "Colombia"
+          },
+          "department": {
+            "type": "string",
+            "example": "Valle del Cauca"
+          },
+          "city": {
+            "type": "string",
+            "example": "Cali"
+          },
+          "address": {
+            "type": "string",
+            "example": "Carrera 10 #20-30"
+          },
+          "notes": {
+            "type": "string",
+            "example": "Apartment 302"
+          },
+          "zipcode": {
+            "type": "string",
+            "example": "760001"
+          },
+          "coordinates": {
+            "description": "GeoJSON Point [longitude, latitude]",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryGeoPointDto"
+              }
+            ]
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "example": true,
+            "description": "Setting true demotes other primaries atomically. Setting false on the current primary is rejected."
+          }
+        }
       },
       "UpsertDeliveryInformationDto": {
         "type": "object",
@@ -2710,6 +3030,44 @@
           }
         }
       },
+      "ProductImageItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234",
+            "description": "Persisted image id — send in POST /products `images`"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/v1/sample.jpg"
+          },
+          "publicId": {
+            "type": "string",
+            "example": "products/temp/abc123",
+            "description": "Provider public id (Cloudinary)"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "publicId"
+        ]
+      },
+      "ProductImagesUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImageItemDto"
+            }
+          }
+        },
+        "required": [
+          "images"
+        ]
+      },
       "CreateProductDto": {
         "type": "object",
         "properties": {
@@ -2757,6 +3115,16 @@
             "example": 5,
             "description": "Required minimum when made_to_order"
           },
+          "images": {
+            "example": [
+              "68af1a2b3c4d5e6f78901234"
+            ],
+            "description": "Ids from POST /products/images (TEMPORARY images owned by you). Embedded on the product as `{ id, url }` / `{ url, publicId }` subdocs.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "tags": {
             "example": [
               "seafood",
@@ -2779,24 +3147,6 @@
           "name",
           "price",
           "availability"
-        ]
-      },
-      "ProductImageUploadResponseDto": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "example": "https://res.cloudinary.com/demo/image/upload/v1/sample.jpg"
-          },
-          "id": {
-            "type": "string",
-            "example": "68af1a2b3c4d5e6f78901234",
-            "description": "Subdocument id — use with DELETE /products/:id/images/:imageId"
-          }
-        },
-        "required": [
-          "url",
-          "id"
         ]
       },
       "UpdateProductDto": {
@@ -2991,7 +3341,12 @@
               "CUSTOM"
             ],
             "example": "CUSTOMER_PROFILE",
-            "description": "CUSTOMER_PROFILE copies saved user delivery; CUSTOM requires location + address"
+            "description": "CUSTOMER_PROFILE copies primary/selected saved address (or legacy deliveryInformation); CUSTOM requires location + address"
+          },
+          "addressId": {
+            "type": "string",
+            "example": "01K2ABC...",
+            "description": "When source is CUSTOMER_PROFILE, select a saved address by id. Omit to use the primary address."
           },
           "location": {
             "description": "Required when source is CUSTOM. GeoJSON Point [longitude, latitude]",
