@@ -8,7 +8,6 @@ import {
   MaxLength,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class SearchAddressQueryDto {
@@ -21,16 +20,22 @@ export class SearchAddressQueryDto {
   @MaxLength(200)
   query: string;
 
-  @ApiPropertyOptional({ example: 3.4516 })
-  @ValidateIf((o: SearchAddressQueryDto) => o.longitude != null)
+  @ApiPropertyOptional({
+    example: 3.4516,
+    description: 'Optional. Bias results near this point (use with longitude).',
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-90)
   @Max(90)
   latitude?: number;
 
-  @ApiPropertyOptional({ example: -76.532 })
-  @ValidateIf((o: SearchAddressQueryDto) => o.latitude != null)
+  @ApiPropertyOptional({
+    example: -76.532,
+    description: 'Optional. Bias results near this point (use with latitude).',
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(-180)
@@ -39,7 +44,7 @@ export class SearchAddressQueryDto {
 
   @ApiPropertyOptional({
     example: 10000,
-    description: 'Bias radius in meters (requires latitude + longitude)',
+    description: 'Bias radius in meters. Ignored unless both latitude and longitude are sent.',
   })
   @IsOptional()
   @Type(() => Number)

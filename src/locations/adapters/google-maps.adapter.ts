@@ -12,9 +12,12 @@ import {
 } from '../types/location.types';
 import { LocationProvider } from './location-provider.interface';
 
-const AUTOCOMPLETE_URL =
+const AUTOCOMPLETE_NEW_URL =
   'https://places.googleapis.com/v1/places:autocomplete';
-const PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places';
+const PLACE_DETAILS_NEW_URL = 'https://places.googleapis.com/v1/places';
+const AUTOCOMPLETE_LEGACY_URL =
+  'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 const DEFAULT_RADIUS_M = 50_000;
 const MAX_ATTEMPTS = 3;
 
@@ -23,9 +26,15 @@ type PlacePrediction = {
   text?: { text?: string };
 };
 
-type AutocompleteResponse = {
+type AutocompleteNewResponse = {
   suggestions?: Array<{ placePrediction?: PlacePrediction }>;
   error?: { code?: number; status?: string; message?: string };
+};
+
+type AutocompleteLegacyResponse = {
+  status: string;
+  predictions?: Array<{ place_id?: string; description?: string }>;
+  error_message?: string;
 };
 
 type PlaceComponent = {
@@ -33,7 +42,7 @@ type PlaceComponent = {
   types?: string[];
 };
 
-type PlaceDetailsResponse = {
+type PlaceDetailsNewResponse = {
   id?: string;
   formattedAddress?: string;
   addressComponents?: PlaceComponent[];
@@ -41,9 +50,25 @@ type PlaceDetailsResponse = {
   error?: { code?: number; status?: string; message?: string };
 };
 
+type GeocodeComponent = {
+  long_name: string;
+  types: string[];
+};
+
+type GeocodeResponse = {
+  status: string;
+  results?: Array<{
+    formatted_address?: string;
+    address_components?: GeocodeComponent[];
+    geometry?: { location?: { lat: number; lng: number } };
+  }>;
+};
+
 @Injectable()
 export class GoogleMapsAdapter extends LocationProvider {
   private readonly logger = new Logger(GoogleMapsAdapter.name);
+  /** Places API (New) returns 403 when not enabled — use classic APIs after that. */
+  private useLegacy = false;
 
   constructor(
     private readonly apiKey: string,
@@ -56,21 +81,43 @@ export class GoogleMapsAdapter extends LocationProvider {
     query: string,
     options?: LocationSearchOptions,
   ): Promise<LocationSearchResult[]> {
+    if (!this.useLegacy) {
+      const result = await this.searchNew(query, options);
+      if (result !== 'denied') return result;
+      this.useLegacy = true;
+      this.logger.warn(
+        'Places API (New) denied — falling back to Places Autocomplete (legacy). Enable "Places API (New)" in Google Cloud to use the new API.',
+      );
+    }
+    return this.searchLegacy(query, options);
+  }
+
+  async getAddressDetails(
+    placeId: string,
+    sessionToken?: string,
+  ): Promise<AddressDetails> {
+    const id = placeId.replace(/^places\//, '');
+    if (!this.useLegacy) {
+      const result = await this.detailsNew(id, sessionToken);
+      if (result !== 'denied') return result;
+      this.useLegacy = true;
+      this.logger.warn(
+        'Places API (New) denied — falling back to Geocoding API.',
+      );
+    }
+    return this.detailsGeocode(id);
+  }
+
+  private async searchNew(
+    query: string,
+    options?: LocationSearchOptions,
+  ): Promise<LocationSearchResult[] | 'denied'> {
     const body: Record<string, unknown> = { input: query };
     if (options?.sessionToken) body.sessionToken = options.sessionToken;
-    if (options?.latitude != null && options?.longitude != null) {
-      body.locationBias = {
-        circle: {
-          center: {
-            latitude: options.latitude,
-            longitude: options.longitude,
-          },
-          radius: options.radius ?? DEFAULT_RADIUS_M,
-        },
-      };
-    }
+    const bias = this.bias(options);
+    if (bias) body.locationBias = bias;
 
-    const res = await this.request(AUTOCOMPLETE_URL, {
+    const res = await this.request(AUTOCOMPLETE_NEW_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +128,8 @@ export class GoogleMapsAdapter extends LocationProvider {
       body: JSON.stringify(body),
     });
 
-    const json = (await this.readJson(res)) as AutocompleteResponse;
+    const json = (await this.readJson(res)) as AutocompleteNewResponse;
+    if (this.isDenied(res.status, json.error?.status)) return 'denied';
     if (!res.ok || json.error) {
       this.throwProviderError(res.status, json.error?.status);
     }
@@ -95,12 +143,56 @@ export class GoogleMapsAdapter extends LocationProvider {
       }));
   }
 
-  async getAddressDetails(
-    placeId: string,
+  private async searchLegacy(
+    query: string,
+    options?: LocationSearchOptions,
+  ): Promise<LocationSearchResult[]> {
+    const url = new URL(AUTOCOMPLETE_LEGACY_URL);
+    url.searchParams.set('input', query);
+    url.searchParams.set('key', this.apiKey);
+    url.searchParams.set('language', 'es');
+    if (options?.sessionToken) {
+      url.searchParams.set('sessiontoken', options.sessionToken);
+    }
+    if (options?.latitude != null && options?.longitude != null) {
+      url.searchParams.set(
+        'location',
+        `${options.latitude},${options.longitude}`,
+      );
+      url.searchParams.set(
+        'radius',
+        String(options.radius ?? DEFAULT_RADIUS_M),
+      );
+    }
+
+    const res = await this.request(url.toString(), { method: 'GET' });
+    const json = (await this.readJson(res)) as AutocompleteLegacyResponse;
+    if (
+      this.isDenied(res.status, json.status) ||
+      json.status === 'REQUEST_DENIED'
+    ) {
+      this.throwProviderError(403, json.status);
+    }
+    if (json.status === 'ZERO_RESULTS' || !json.predictions?.length) {
+      return [];
+    }
+    if (json.status !== 'OK') {
+      this.throwProviderError(res.ok ? 400 : res.status, json.status);
+    }
+
+    return (json.predictions ?? [])
+      .filter((p) => p.place_id && p.description)
+      .map((p) => ({
+        placeId: p.place_id!,
+        description: p.description!,
+      }));
+  }
+
+  private async detailsNew(
+    id: string,
     sessionToken?: string,
-  ): Promise<AddressDetails> {
-    const id = placeId.replace(/^places\//, '');
-    const url = new URL(`${PLACE_DETAILS_URL}/${encodeURIComponent(id)}`);
+  ): Promise<AddressDetails | 'denied'> {
+    const url = new URL(`${PLACE_DETAILS_NEW_URL}/${encodeURIComponent(id)}`);
     url.searchParams.set('languageCode', 'es');
     if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
 
@@ -113,7 +205,8 @@ export class GoogleMapsAdapter extends LocationProvider {
       },
     });
 
-    const json = (await this.readJson(res)) as PlaceDetailsResponse;
+    const json = (await this.readJson(res)) as PlaceDetailsNewResponse;
+    if (this.isDenied(res.status, json.error?.status)) return 'denied';
     if (res.status === 404) {
       throw new NotFoundException('Location not found');
     }
@@ -128,29 +221,104 @@ export class GoogleMapsAdapter extends LocationProvider {
     }
 
     const components = json.addressComponents ?? [];
-    const streetNumber = this.component(components, 'street_number');
-    const route = this.component(components, 'route');
+    const streetNumber = this.newComponent(components, 'street_number');
+    const route = this.newComponent(components, 'route');
     const street = [streetNumber, route].filter(Boolean).join(' ');
 
     return {
       placeId: (json.id ?? id).replace(/^places\//, ''),
       formattedAddress: json.formattedAddress ?? '',
-      country: this.component(components, 'country') ?? '',
-      department: this.component(components, 'administrative_area_level_1'),
+      country: this.newComponent(components, 'country') ?? '',
+      department: this.newComponent(
+        components,
+        'administrative_area_level_1',
+      ),
       city:
-        this.component(components, 'locality') ??
-        this.component(components, 'administrative_area_level_2'),
+        this.newComponent(components, 'locality') ??
+        this.newComponent(components, 'administrative_area_level_2'),
       address: street || undefined,
-      zipcode: this.component(components, 'postal_code'),
+      zipcode: this.newComponent(components, 'postal_code'),
       coordinates: { latitude: lat, longitude: lng },
     };
   }
 
-  private component(
-    components: PlaceComponent[],
-    type: string,
-  ): string | undefined {
+  private async detailsGeocode(id: string): Promise<AddressDetails> {
+    const url = new URL(GEOCODE_URL);
+    url.searchParams.set('place_id', id);
+    url.searchParams.set('key', this.apiKey);
+    url.searchParams.set('language', 'es');
+
+    const res = await this.request(url.toString(), { method: 'GET' });
+    const json = (await this.readJson(res)) as GeocodeResponse;
+
+    if (json.status === 'ZERO_RESULTS' || !json.results?.length) {
+      throw new NotFoundException('Location not found');
+    }
+    if (json.status === 'REQUEST_DENIED') {
+      this.throwProviderError(403, json.status);
+    }
+    if (json.status !== 'OK') {
+      this.throwProviderError(
+        json.status === 'INVALID_REQUEST' ? 400 : 503,
+        json.status,
+      );
+    }
+
+    const result = json.results[0];
+    const loc = result.geometry?.location;
+    if (loc?.lat == null || loc?.lng == null) {
+      throw new NotFoundException('Location not found');
+    }
+
+    const components = result.address_components ?? [];
+    const streetNumber = this.legacyComponent(components, 'street_number');
+    const route = this.legacyComponent(components, 'route');
+    const street = [streetNumber, route].filter(Boolean).join(' ');
+
+    return {
+      placeId: id,
+      formattedAddress: result.formatted_address ?? '',
+      country: this.legacyComponent(components, 'country') ?? '',
+      department: this.legacyComponent(
+        components,
+        'administrative_area_level_1',
+      ),
+      city:
+        this.legacyComponent(components, 'locality') ??
+        this.legacyComponent(components, 'administrative_area_level_2'),
+      address: street || undefined,
+      zipcode: this.legacyComponent(components, 'postal_code'),
+      coordinates: { latitude: loc.lat, longitude: loc.lng },
+    };
+  }
+
+  private bias(options?: LocationSearchOptions) {
+    if (options?.latitude == null || options?.longitude == null) return null;
+    return {
+      circle: {
+        center: {
+          latitude: options.latitude,
+          longitude: options.longitude,
+        },
+        radius: options.radius ?? DEFAULT_RADIUS_M,
+      },
+    };
+  }
+
+  private isDenied(httpStatus: number, providerStatus?: string) {
+    return (
+      httpStatus === 403 ||
+      providerStatus === 'PERMISSION_DENIED' ||
+      providerStatus === 'REQUEST_DENIED'
+    );
+  }
+
+  private newComponent(components: PlaceComponent[], type: string) {
     return components.find((c) => c.types?.includes(type))?.longText;
+  }
+
+  private legacyComponent(components: GeocodeComponent[], type: string) {
+    return components.find((c) => c.types.includes(type))?.long_name;
   }
 
   private async request(url: string, init: RequestInit): Promise<Response> {
@@ -204,6 +372,15 @@ export class GoogleMapsAdapter extends LocationProvider {
 
     if (invalid) {
       throw new BadRequestException('Invalid location search request');
+    }
+
+    if (this.isDenied(httpStatus, providerStatus)) {
+      this.logger.warn(
+        `Google Maps permission denied (${providerStatus ?? httpStatus}). Enable Places API and/or Geocoding API (and billing) on this key.`,
+      );
+      throw new ServiceUnavailableException(
+        'Location provider is not enabled for this API key',
+      );
     }
 
     this.logger.warn(

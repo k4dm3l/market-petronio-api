@@ -31,7 +31,7 @@ export class LocationsController {
   @ApiOperation({
     summary: 'Autocomplete address search',
     description:
-      'Looks up Redis first (`cache:locations:search:*`). On miss, calls Places Autocomplete with a backend-managed Google session token (not the JWT). Debounce on the client (300–500ms). Optional `latitude`+`longitude` bias.',
+      'Looks up Redis first. On miss, Places Autocomplete. `query` is the only required param. `latitude`/`longitude`/`radius` are optional bias — omit them for a normal search.',
   })
   @ApiOkResponse({ type: LocationSearchResponseDto })
   @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })

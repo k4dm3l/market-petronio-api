@@ -37,12 +37,7 @@ export class LocationsService {
     userId: string,
   ): Promise<LocationSearchResult[]> {
     const text = this.normalizeQuery(query.query);
-    const cacheKey = this.searchCacheKey(
-      text,
-      query.latitude,
-      query.longitude,
-      query.radius,
-    );
+    const cacheKey = this.searchCacheKey(text, this.geoBias(query));
 
     const cached = await this.cache.getJson<LocationSearchResult[]>(cacheKey);
     if (cached) return cached;
@@ -50,9 +45,7 @@ export class LocationsService {
     const sessionToken = await this.peekOrCreateSession(userId);
     const data = await this.provider.searchAddresses(text, {
       sessionToken: sessionToken ?? undefined,
-      latitude: query.latitude,
-      longitude: query.longitude,
-      radius: query.radius,
+      ...this.geoBias(query),
     });
 
     const ttl = this.config.get<number>(
@@ -87,15 +80,22 @@ export class LocationsService {
     return query.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
+  private geoBias(query: SearchAddressQueryDto) {
+    if (query.latitude == null || query.longitude == null) return {};
+    return {
+      latitude: query.latitude,
+      longitude: query.longitude,
+      radius: query.radius,
+    };
+  }
+
   private searchCacheKey(
     query: string,
-    lat?: number,
-    lng?: number,
-    radius?: number,
+    bias: { latitude?: number; longitude?: number; radius?: number },
   ): string {
-    if (lat != null && lng != null) {
-      const r = radius ?? 50000;
-      return `cache:locations:search:${query}:${lat.toFixed(2)}:${lng.toFixed(2)}:${r}`;
+    if (bias.latitude != null && bias.longitude != null) {
+      const r = bias.radius ?? 50000;
+      return `cache:locations:search:${query}:${bias.latitude.toFixed(2)}:${bias.longitude.toFixed(2)}:${r}`;
     }
     return `cache:locations:search:${query}`;
   }
