@@ -33,6 +33,10 @@ export function buildOpenApiConfig() {
       'notifications',
       'Transactional email inbox (centralized templates, spec 007)',
     )
+    .addTag(
+      'locations',
+      'Address autocomplete and place details via LocationProvider (spec 013)',
+    )
     .addTag('health', 'Liveness/readiness: MongoDB + Redis (spec 012)')
     .build();
 }

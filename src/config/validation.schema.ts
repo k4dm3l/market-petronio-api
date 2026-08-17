@@ -21,4 +21,11 @@ export const validationSchema = Joi.object({
   REDIS_URL: Joi.string().default('redis://127.0.0.1:6379'),
   CACHE_TTL_CATEGORIES_SECONDS: Joi.number().integer().min(1).default(3600),
   CACHE_TTL_TAGS_SECONDS: Joi.number().integer().min(1).default(600),
+  CACHE_TTL_LOCATIONS_SECONDS: Joi.number().integer().min(1).default(86400),
+  CACHE_TTL_LOCATION_SEARCH_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .default(3600),
+  GOOGLE_MAPS_API_KEY: Joi.string().optional(),
+  GOOGLE_MAPS_TIMEOUT_MS: Joi.number().integer().min(1000).max(15000).default(4000),
 });

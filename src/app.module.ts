@@ -8,6 +8,7 @@ import { cacheConfig } from './config/cache.config';
 import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
+import { googleMapsConfig } from './config/google-maps.config';
 import { jwtConfig } from './config/jwt.config';
 import { redisConfig } from './config/redis.config';
 import { validationSchema } from './config/validation.schema';
@@ -24,6 +25,7 @@ import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
 import { TagsModule } from './tags/tags.module';
+import { LocationsModule } from './locations/locations.module';
 
 @Module({
   imports: [
@@ -38,6 +40,7 @@ import { TagsModule } from './tags/tags.module';
         emailConfig,
         redisConfig,
         cacheConfig,
+        googleMapsConfig,
       ],
       validationSchema,
       validationOptions: {
@@ -70,6 +73,7 @@ import { TagsModule } from './tags/tags.module';
     AdminModule,
     HealthModule,
     TagsModule,
+    LocationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

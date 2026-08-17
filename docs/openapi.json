@@ -2403,6 +2403,127 @@
           "health"
         ]
       }
+    },
+    "/api/locations/search": {
+      "get": {
+        "description": "Proxies Places Autocomplete. Debounce on the client (300–500ms). Reuse `sessionToken` for a typing session. Optional `latitude`+`longitude` bias results. Not cursor-paginated.",
+        "operationId": "LocationsController_search",
+        "parameters": [
+          {
+            "name": "query",
+            "required": true,
+            "in": "query",
+            "description": "Address search text (frontend should debounce 300–500ms)",
+            "schema": {
+              "example": "Carrera 5 Cali",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionToken",
+            "required": false,
+            "in": "query",
+            "description": "Reuse one token for a typing session; pass the same token to GET /locations/places/:placeId",
+            "schema": {
+              "example": "550e8400-e29b-41d4-a716-446655440000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "latitude",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 3.4516,
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": -76.532,
+              "type": "number"
+            }
+          },
+          {
+            "name": "radius",
+            "required": false,
+            "in": "query",
+            "description": "Bias radius in meters (requires latitude + longitude)",
+            "schema": {
+              "example": 10000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationSearchResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Autocomplete address search",
+        "tags": [
+          "locations"
+        ]
+      }
+    },
+    "/api/locations/places/{placeId}": {
+      "get": {
+        "description": "Maps to UserAddress fields (country, department, city, address, zipcode) plus GeoJSON-ready lat/lng. Cached in Redis.",
+        "operationId": "LocationsController_getPlace",
+        "parameters": [
+          {
+            "name": "placeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "ChIJx...",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressDetailsResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get normalized address details for a selected place",
+        "tags": [
+          "locations"
+        ]
+      }
     }
   },
   "info": {
@@ -2447,6 +2568,10 @@
     {
       "name": "notifications",
       "description": "Transactional email inbox (centralized templates, spec 007)"
+    },
+    {
+      "name": "locations",
+      "description": "Address autocomplete and place details via LocationProvider (spec 013)"
     },
     {
       "name": "health",
@@ -3818,6 +3943,96 @@
         },
         "required": [
           "isActive"
+        ]
+      },
+      "LocationSearchItemDto": {
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "example": "ChIJx..."
+          },
+          "description": {
+            "type": "string",
+            "example": "Carrera 5 #10-20, Cali, Valle del Cauca, Colombia"
+          }
+        },
+        "required": [
+          "placeId",
+          "description"
+        ]
+      },
+      "LocationSearchResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocationSearchItemDto"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LocationCoordinatesDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "example": 3.4516
+          },
+          "longitude": {
+            "type": "number",
+            "example": -76.532
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "AddressDetailsResponseDto": {
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "example": "ChIJx..."
+          },
+          "formattedAddress": {
+            "type": "string",
+            "example": "Carrera 5 #10-20, Cali, Valle del Cauca, Colombia"
+          },
+          "country": {
+            "type": "string",
+            "example": "Colombia"
+          },
+          "department": {
+            "type": "string",
+            "example": "Valle del Cauca"
+          },
+          "city": {
+            "type": "string",
+            "example": "Cali"
+          },
+          "address": {
+            "type": "string",
+            "example": "Carrera 5 #10-20"
+          },
+          "zipcode": {
+            "type": "string",
+            "example": "760001"
+          },
+          "coordinates": {
+            "$ref": "#/components/schemas/LocationCoordinatesDto"
+          }
+        },
+        "required": [
+          "placeId",
+          "formattedAddress",
+          "country",
+          "coordinates"
         ]
       }
     }
