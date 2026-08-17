@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
@@ -27,7 +27,9 @@ async function bootstrap() {
   app.use(httpLoggingMiddleware);
 
   const apiPrefix = config.get<string>('app.apiPrefix', 'api');
-  app.setGlobalPrefix(apiPrefix);
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [{ path: '', method: RequestMethod.GET }],
+  });
 
   app.enableCors({
     origin: parseCorsOrigins(config.get<string>('app.corsOrigin')),

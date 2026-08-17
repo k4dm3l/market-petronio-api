@@ -26,6 +26,7 @@ import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
 import { TagsModule } from './tags/tags.module';
 import { LocationsModule } from './locations/locations.module';
+import { RootController } from './root.controller';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { LocationsModule } from './locations/locations.module';
     TagsModule,
     LocationsModule,
   ],
+  controllers: [RootController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
