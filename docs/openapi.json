@@ -28,6 +28,7 @@
     },
     "/api/auth/login": {
       "post": {
+        "description": "When the user role is `cook`, the response includes a `cook` property with the owner cook profile (coordinates and payment methods).",
         "operationId": "AuthController_login",
         "parameters": [],
         "requestBody": {
@@ -457,52 +458,9 @@
         ]
       }
     },
-    "/api/notifications": {
-      "get": {
-        "description": "Cursor pagination (`limit`, `cursor`). Spec §12: emails on order created/confirmed/paid/shipped/delivered.",
-        "operationId": "NotificationsController_findAll",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Page size (1–100)",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
-            "schema": {
-              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List email notifications for the current user (MVP inbox for order events)",
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
     "/api/cooks": {
       "get": {
-        "description": "Cursor pagination (`limit`, `cursor`).",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `tags` filters specialties with `$in` (any match).",
         "operationId": "CooksController_findAll",
         "parameters": [
           {
@@ -553,6 +511,18 @@
               "default": 10000,
               "example": 10000,
               "type": "number"
+            }
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "in": "query",
+            "description": "Match cooks whose specialties include any of these tags (`$in`). Comma-separated or repeated `tags`.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         ],
@@ -683,6 +653,49 @@
         "summary": "Update cook profile (owner or admin; isActive is admin-only)",
         "tags": [
           "cooks"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "description": "Cursor pagination (`limit`, `cursor`). Spec §12: emails on order created/confirmed/paid/shipped/delivered.",
+        "operationId": "NotificationsController_findAll",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (1–100)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Opaque cursor from the previous page `pagination.nextCursor`",
+            "schema": {
+              "example": "eyJjcmVhdGVkQXQiOiIyMDI2LTA4LTE2VDEyOjAwOjAwLjAwMFoiLCJpZCI6IjY4YWYifQ",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List email notifications for the current user (MVP inbox for order events)",
+        "tags": [
+          "notifications"
         ]
       }
     },
@@ -1653,6 +1666,7 @@
     },
     "/api/orders/{id}/status": {
       "patch": {
+        "description": "To cancel, send `{ \"status\": \"CANCELLED\", \"reason\": \"...\" }` (reason 5–500 chars). Payment status is not changed. Stock is released if it was reserved.",
         "operationId": "OrdersController_updateStatus",
         "parameters": [
           {
@@ -1939,7 +1953,7 @@
     },
     "/api/admin/cooks": {
       "get": {
-        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.",
+        "description": "Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email. Optional `tags` filters specialties with `$in` (any match).",
         "operationId": "AdminController_listCooks",
         "parameters": [
           {
@@ -1971,6 +1985,18 @@
             "schema": {
               "example": "maría",
               "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "in": "query",
+            "description": "Match cooks whose specialties include any of these tags (`$in`). Comma-separated or repeated `tags`.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         ],
@@ -2406,7 +2432,7 @@
     },
     "/api/locations/search": {
       "get": {
-        "description": "Proxies Places Autocomplete. Debounce on the client (300–500ms). Reuse `sessionToken` for a typing session. Optional `latitude`+`longitude` bias results. Not cursor-paginated.",
+        "description": "Looks up Redis first. On miss, Places Autocomplete. `query` is the only required param. `latitude`/`longitude`/`radius` are optional bias — omit them for a normal search.",
         "operationId": "LocationsController_search",
         "parameters": [
           {
@@ -2420,19 +2446,10 @@
             }
           },
           {
-            "name": "sessionToken",
-            "required": false,
-            "in": "query",
-            "description": "Reuse one token for a typing session; pass the same token to GET /locations/places/:placeId",
-            "schema": {
-              "example": "550e8400-e29b-41d4-a716-446655440000",
-              "type": "string"
-            }
-          },
-          {
             "name": "latitude",
             "required": false,
             "in": "query",
+            "description": "Optional. Bias results near this point (use with longitude).",
             "schema": {
               "example": 3.4516,
               "type": "number"
@@ -2442,6 +2459,7 @@
             "name": "longitude",
             "required": false,
             "in": "query",
+            "description": "Optional. Bias results near this point (use with latitude).",
             "schema": {
               "example": -76.532,
               "type": "number"
@@ -2451,7 +2469,7 @@
             "name": "radius",
             "required": false,
             "in": "query",
-            "description": "Bias radius in meters (requires latitude + longitude)",
+            "description": "Bias radius in meters. Ignored unless both latitude and longitude are sent.",
             "schema": {
               "example": 10000,
               "type": "number"
@@ -2486,7 +2504,7 @@
     },
     "/api/locations/places/{placeId}": {
       "get": {
-        "description": "Maps to UserAddress fields (country, department, city, address, zipcode) plus GeoJSON-ready lat/lng. Cached in Redis.",
+        "description": "Redis cache first. On miss, Place Details (New) with the backend Google session token, then cache. Maps to UserAddress fields.",
         "operationId": "LocationsController_getPlace",
         "parameters": [
           {
@@ -3714,6 +3732,50 @@
           "confirmed"
         ]
       },
+      "CancelledByResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "68af1a2b3c4d5e6f78901234"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "cook",
+              "admin"
+            ],
+            "example": "cook"
+          }
+        },
+        "required": [
+          "id",
+          "role"
+        ]
+      },
+      "OrderCancellationResponseDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "The product is no longer available."
+          },
+          "cancelledBy": {
+            "$ref": "#/components/schemas/CancelledByResponseDto"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-08-17T17:30:00.000Z"
+          }
+        },
+        "required": [
+          "reason",
+          "cancelledBy",
+          "cancelledAt"
+        ]
+      },
       "OrderResponseDto": {
         "type": "object",
         "properties": {
@@ -3769,6 +3831,14 @@
           },
           "customerConfirmation": {
             "$ref": "#/components/schemas/CustomerConfirmationResponseDto"
+          },
+          "cancellation": {
+            "description": "Present only when status is CANCELLED",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderCancellationResponseDto"
+              }
+            ]
           },
           "createdAt": {
             "format": "date-time",
@@ -3878,6 +3948,11 @@
               "DELIVERED",
               "CANCELLED"
             ]
+          },
+          "reason": {
+            "type": "string",
+            "example": "The product is no longer available.",
+            "description": "Required when status is CANCELLED (5–500 characters)"
           }
         },
         "required": [
