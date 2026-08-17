@@ -13,6 +13,7 @@ import {
   resolveLimit,
 } from '../common/pagination/cursor.util';
 import { escapeRegex } from '../common/utils/escape-regex';
+import { CacheService } from '../redis/cache.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { Category, CategoryDocument } from './schemas/category.schema';
 
@@ -21,6 +22,7 @@ export class CategoriesService {
   constructor(
     @InjectModel(Category.name)
     private categoryModel: Model<CategoryDocument>,
+    private readonly cache: CacheService,
   ) {}
 
   async create(dto: CreateCategoryDto) {
@@ -38,11 +40,39 @@ export class CategoriesService {
       isActive: true,
     });
 
+    await this.cache.invalidate('categories');
     return this.toResponse(category);
   }
 
   async findAll(includeInactive = false, query: SearchQueryDto = {}) {
     const limit = resolveLimit(query.limit);
+    const cacheable =
+      !includeInactive && !query.search?.trim() && !query.cursor;
+
+    if (cacheable) {
+      const key = await this.cache.listKey('categories', `list:${limit}`);
+      const cached = await this.cache.getJson<
+        Awaited<ReturnType<CategoriesService['findAllFromDb']>>
+      >(key);
+      if (cached) return cached;
+
+      const page = await this.findAllFromDb(includeInactive, query, limit);
+      await this.cache.setJson(
+        key,
+        page,
+        this.cache.ttlSeconds('categories'),
+      );
+      return page;
+    }
+
+    return this.findAllFromDb(includeInactive, query, limit);
+  }
+
+  private async findAllFromDb(
+    includeInactive: boolean,
+    query: SearchQueryDto,
+    limit: number,
+  ) {
     const filter: Record<string, unknown> = includeInactive
       ? {}
       : { isActive: true };
@@ -107,6 +137,7 @@ export class CategoriesService {
     if (dto.isActive !== undefined) category.isActive = dto.isActive;
 
     await category.save();
+    await this.cache.invalidate('categories');
     return this.toResponse(category);
   }
 

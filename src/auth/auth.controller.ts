@@ -7,7 +7,9 @@ import {
   ApiBadRequestResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -35,27 +37,34 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
   @ApiOperation({ summary: 'Register a customer account' })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @ApiOperation({ summary: 'Login and receive access + refresh tokens' })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('password-recovery/request')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -67,6 +76,7 @@ Sends a 6-digit OTP to the registered email when the account exists.
 - Response is always the same generic message (no email enumeration).
 - OTP is stored hashed in Redis with a **10-minute** TTL.
 - Max **3** recovery requests per email every **15 minutes**.
+- IP rate limit: **5** requests / minute (in addition to per-email Redis limit).
 
 **Flow**
 1. Call this endpoint with the account email.
@@ -82,11 +92,13 @@ Sends a 6-digit OTP to the registered email when the account exists.
   @ApiBadRequestResponse({
     description: 'Invalid email format',
   })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   requestPasswordRecovery(@Body() dto: PasswordRecoveryRequestDto) {
     return this.passwordRecoveryService.request(dto.email);
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('password-recovery/reset')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -119,6 +131,7 @@ On success the Redis recovery key is deleted so the OTP cannot be reused.
       },
     },
   })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   resetPassword(@Body() dto: PasswordRecoveryResetDto) {
     return this.passwordRecoveryService.reset(dto);
   }

@@ -1,8 +1,10 @@
-import { Global, Logger, Module } from '@nestjs/common';
+import { Global, Logger, Module, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { CacheService } from './cache.service';
+import { REDIS_CLIENT } from './redis.constants';
 
-export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
+export { REDIS_CLIENT } from './redis.constants';
 
 @Global()
 @Module({
@@ -40,14 +42,35 @@ export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
           logger.log('Redis connected');
         } catch (err) {
           logger.error(
-            `Redis unavailable at startup: ${err instanceof Error ? err.message : err}. Password recovery will fail until Redis is reachable.`,
+            `Redis unavailable at startup: ${err instanceof Error ? err.message : err}. OTP/cache will degrade until Redis is reachable.`,
           );
         }
 
         return client;
       },
     },
+    CacheService,
   ],
-  exports: [REDIS_CLIENT],
+  exports: [REDIS_CLIENT, CacheService],
 })
-export class RedisModule {}
+export class RedisModule implements OnModuleDestroy {
+  private readonly logger = new Logger(RedisModule.name);
+
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  async onModuleDestroy() {
+    try {
+      if (this.redis.status === 'ready' || this.redis.status === 'connecting') {
+        await this.redis.quit();
+        this.logger.log('Redis connection closed');
+      } else {
+        this.redis.disconnect();
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Redis shutdown: ${err instanceof Error ? err.message : err}`,
+      );
+      this.redis.disconnect();
+    }
+  }
+}

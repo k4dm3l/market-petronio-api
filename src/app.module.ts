@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { appConfig } from './config/app.config';
+import { cacheConfig } from './config/cache.config';
 import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import { emailConfig } from './config/email.config';
@@ -35,6 +37,7 @@ import { TagsModule } from './tags/tags.module';
         cloudinaryConfig,
         emailConfig,
         redisConfig,
+        cacheConfig,
       ],
       validationSchema,
       validationOptions: {
@@ -48,6 +51,14 @@ import { TagsModule } from './tags/tags.module';
         uri: config.getOrThrow<string>('database.uri'),
       }),
     }),
+    // Mild global default; auth endpoints override with stricter @Throttle
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 120,
+      },
+    ]),
     RedisModule,
     AuthModule,
     UsersModule,
@@ -61,6 +72,7 @@ import { TagsModule } from './tags/tags.module';
     TagsModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

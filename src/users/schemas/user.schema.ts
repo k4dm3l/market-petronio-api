@@ -98,3 +98,4 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ 'addresses.coordinates': '2dsphere' });

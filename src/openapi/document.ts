@@ -33,7 +33,7 @@ export function buildOpenApiConfig() {
       'notifications',
       'Transactional email inbox (centralized templates, spec 007)',
     )
-    .addTag('health', 'Health checks')
+    .addTag('health', 'Liveness/readiness: MongoDB + Redis (spec 012)')
     .build();
 }
 

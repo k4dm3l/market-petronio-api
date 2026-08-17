@@ -7,13 +7,17 @@ import {
   paginateSlice,
   resolveLimit,
 } from '../common/pagination/cursor.util';
+import { CacheService } from '../redis/cache.service';
 import { CreateTagDto, FindTagsQueryDto } from './dto/tag.dto';
 import { Tag, TagDocument } from './schemas/tag.schema';
 import { normalizeTagText } from './tag-text.util';
 
 @Injectable()
 export class TagsService {
-  constructor(@InjectModel(Tag.name) private tagModel: Model<TagDocument>) {}
+  constructor(
+    @InjectModel(Tag.name) private tagModel: Model<TagDocument>,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * Idempotent create: returns existing tag on duplicate text (unique index).
@@ -32,6 +36,7 @@ export class TagsService {
 
     try {
       const tag = await this.tagModel.create({ text });
+      await this.cache.invalidate('tags');
       return { tag: this.toResponse(tag), created: true };
     } catch (err: unknown) {
       if (this.isDuplicateKey(err)) {
@@ -46,6 +51,24 @@ export class TagsService {
 
   async findAll(query: FindTagsQueryDto) {
     const limit = resolveLimit(query.limit);
+    const cacheable = !query.search?.trim() && !query.cursor;
+
+    if (cacheable) {
+      const key = await this.cache.listKey('tags', `list:${limit}`);
+      const cached = await this.cache.getJson<
+        Awaited<ReturnType<TagsService['findAllFromDb']>>
+      >(key);
+      if (cached) return cached;
+
+      const page = await this.findAllFromDb(query, limit);
+      await this.cache.setJson(key, page, this.cache.ttlSeconds('tags'));
+      return page;
+    }
+
+    return this.findAllFromDb(query, limit);
+  }
+
+  private async findAllFromDb(query: FindTagsQueryDto, limit: number) {
     const filter: Record<string, unknown> = {};
 
     if (query.search?.trim()) {

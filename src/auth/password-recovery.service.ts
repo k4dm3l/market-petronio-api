@@ -8,7 +8,7 @@ import {
 import Redis from 'ioredis';
 import { hashPassword } from '../common/crypto/password-hasher';
 import { NotificationsService } from '../notifications/notifications.service';
-import { REDIS_CLIENT } from '../redis/redis.module';
+import { REDIS_CLIENT } from '../redis/redis.constants';
 import { UsersService } from '../users/users.service';
 
 const OTP_TTL_SECONDS = 600; // 10 minutes
@@ -71,7 +71,9 @@ export class PasswordRecoveryService {
     });
 
     if (!sent) {
-      this.logger.error(`Failed to send recovery OTP to ${user.email}`);
+      this.logger.error(
+        `Failed to send recovery OTP for userId=${user.id}`,
+      );
       await this.redis.del(recoveryKey);
     }
 

@@ -16,8 +16,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "summary": "Register a customer account",
@@ -41,8 +41,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "summary": "Login and receive access + refresh tokens",
@@ -66,8 +66,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "summary": "Refresh access token",
@@ -78,7 +78,7 @@
     },
     "/api/auth/password-recovery/request": {
       "post": {
-        "description": "Sends a 6-digit OTP to the registered email when the account exists.\n\n**Security**\n- Response is always the same generic message (no email enumeration).\n- OTP is stored hashed in Redis with a **10-minute** TTL.\n- Max **3** recovery requests per email every **15 minutes**.\n\n**Flow**\n1. Call this endpoint with the account email.\n2. User receives the OTP by email.\n3. Call `POST /auth/password-recovery/reset` with OTP + new password.",
+        "description": "Sends a 6-digit OTP to the registered email when the account exists.\n\n**Security**\n- Response is always the same generic message (no email enumeration).\n- OTP is stored hashed in Redis with a **10-minute** TTL.\n- Max **3** recovery requests per email every **15 minutes**.\n- IP rate limit: **5** requests / minute (in addition to per-email Redis limit).\n\n**Flow**\n1. Call this endpoint with the account email.\n2. User receives the OTP by email.\n3. Call `POST /auth/password-recovery/reset` with OTP + new password.",
         "operationId": "AuthController_requestPasswordRecovery",
         "parameters": [],
         "requestBody": {
@@ -104,6 +104,9 @@
           },
           "400": {
             "description": "Invalid email format"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "summary": "Request password recovery OTP",
@@ -151,6 +154,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         },
         "summary": "Reset password with email OTP",
@@ -2443,7 +2449,7 @@
     },
     {
       "name": "health",
-      "description": "Health checks"
+      "description": "Liveness/readiness: MongoDB + Redis (spec 012)"
     }
   ],
   "servers": [],

@@ -19,4 +19,6 @@ export const validationSchema = Joi.object({
   EMAIL_FROM: Joi.string().optional(),
   PLATFORM_URL: Joi.string().uri().default('http://localhost:5173'),
   REDIS_URL: Joi.string().default('redis://127.0.0.1:6379'),
+  CACHE_TTL_CATEGORIES_SECONDS: Joi.number().integer().min(1).default(3600),
+  CACHE_TTL_TAGS_SECONDS: Joi.number().integer().min(1).default(600),
 });
