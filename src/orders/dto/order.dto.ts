@@ -16,6 +16,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { Role } from '../../common/enums/role.enum';
 import {
   CursorPaginationQueryDto,
   PaginationMetaDto,
@@ -124,6 +125,16 @@ export class UpdateOrderStatusDto {
   @ApiProperty({ enum: OrderStatus })
   @IsEnum(OrderStatus)
   status: OrderStatus;
+
+  @ApiPropertyOptional({
+    example: 'The product is no longer available.',
+    description: 'Required when status is CANCELLED (5–500 characters)',
+  })
+  @ValidateIf((o: UpdateOrderStatusDto) => o.status === OrderStatus.Cancelled)
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class UpdatePaymentDto {
@@ -291,6 +302,25 @@ export class CustomerConfirmationResponseDto {
   confirmedAt?: Date;
 }
 
+export class CancelledByResponseDto {
+  @ApiProperty({ example: '68af1a2b3c4d5e6f78901234' })
+  id: string;
+
+  @ApiProperty({ enum: Role, example: Role.Cook })
+  role: Role;
+}
+
+export class OrderCancellationResponseDto {
+  @ApiProperty({ example: 'The product is no longer available.' })
+  reason: string;
+
+  @ApiProperty({ type: CancelledByResponseDto })
+  cancelledBy: CancelledByResponseDto;
+
+  @ApiProperty({ example: '2026-08-17T17:30:00.000Z' })
+  cancelledAt: Date;
+}
+
 /** Full order detail including delivery snapshot (spec 005) */
 export class OrderResponseDto {
   @ApiProperty({ example: '68af1a2b3c4d5e6f78901234' })
@@ -329,6 +359,12 @@ export class OrderResponseDto {
 
   @ApiProperty({ type: CustomerConfirmationResponseDto })
   customerConfirmation: CustomerConfirmationResponseDto;
+
+  @ApiPropertyOptional({
+    type: OrderCancellationResponseDto,
+    description: 'Present only when status is CANCELLED',
+  })
+  cancellation?: OrderCancellationResponseDto;
 
   @ApiProperty({ example: '2026-08-15T10:00:00.000Z' })
   createdAt: Date;

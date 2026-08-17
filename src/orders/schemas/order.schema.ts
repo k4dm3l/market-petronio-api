@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { Role } from '../../common/enums/role.enum';
 
 export type OrderDocument = HydratedDocument<Order>;
 
@@ -133,6 +134,21 @@ export class OrderDelivery {
   additionalInformation?: string;
 }
 
+@Schema({ _id: false })
+export class OrderCancellation {
+  @Prop({ required: true, trim: true })
+  reason: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  cancelledBy: Types.ObjectId;
+
+  @Prop({ required: true, enum: Role })
+  cancelledByRole: Role;
+
+  @Prop({ required: true })
+  cancelledAt: Date;
+}
+
 @Schema({ timestamps: true, collection: 'orders' })
 export class Order {
   @Prop({ required: true, unique: true })
@@ -169,6 +185,10 @@ export class Order {
 
   @Prop({ type: CustomerConfirmation, default: () => ({ confirmed: false }) })
   customerConfirmation: CustomerConfirmation;
+
+  /** Present only when status is CANCELLED (spec 014) */
+  @Prop({ type: OrderCancellation })
+  cancellation?: OrderCancellation;
 
   /** Stock reserved on create for available products; released on cancel */
   @Prop({ default: true })

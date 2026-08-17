@@ -182,6 +182,11 @@ export class CooksService {
     return this.cookModel.findOne({ userId: new Types.ObjectId(userId) }).exec();
   }
 
+  async ownerProfileForUser(userId: string) {
+    const cook = await this.findByUserId(userId);
+    return cook ? this.toOwnerView(cook) : null;
+  }
+
   /** Spec §13 — simple cook dashboard aggregates */
   async getDashboard(actor: AuthUser) {
     if (actor.role !== Role.Cook) {

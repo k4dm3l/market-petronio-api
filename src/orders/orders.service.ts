@@ -367,7 +367,7 @@ export class OrdersService {
 
     if (dto.status === OrderStatus.Cancelled) {
       await this.assertCanView(order, actor);
-      return this.cancelOrder(order, actor);
+      return this.cancelOrder(order, actor, dto.reason);
     }
 
     await this.assertCookOrAdmin(order, actor);
@@ -465,6 +465,10 @@ export class OrdersService {
     const order = await this.findByIdOrThrow(id);
     await this.assertCookOrAdmin(order, actor);
 
+    if (order.status === OrderStatus.Cancelled) {
+      throw new BadRequestException('Order is cancelled');
+    }
+
     if (
       dto.status !== ShippingStatus.Pending &&
       order.payment.status !== PaymentStatus.Paid
@@ -534,13 +538,28 @@ export class OrdersService {
     return this.toResponse(order);
   }
 
-  private async cancelOrder(order: OrderDocument, actor: AuthUser) {
+  private async cancelOrder(
+    order: OrderDocument,
+    actor: AuthUser,
+    reason?: string,
+  ) {
+    if (order.status === OrderStatus.Cancelled) {
+      throw new BadRequestException('Order is already cancelled');
+    }
+
     if (
       order.status !== OrderStatus.Pending &&
       order.status !== OrderStatus.Confirmed
     ) {
       throw new BadRequestException(
         'Only PENDING or CONFIRMED orders can be cancelled',
+      );
+    }
+
+    const trimmed = reason?.trim() ?? '';
+    if (trimmed.length < 5) {
+      throw new BadRequestException(
+        'Cancellation reason is required when cancelling an order.',
       );
     }
 
@@ -559,10 +578,15 @@ export class OrdersService {
     }
 
     order.status = OrderStatus.Cancelled;
-    order.payment.status = PaymentStatus.Cancelled;
+    order.cancellation = {
+      reason: trimmed,
+      cancelledBy: new Types.ObjectId(actor.id),
+      cancelledByRole: actor.role,
+      cancelledAt: new Date(),
+    };
     await order.save();
 
-    await this.emitOrderStatusUpdated(order);
+    await this.emitOrderCancelled(order);
     return this.toResponse(order);
   }
 
@@ -661,6 +685,16 @@ export class OrdersService {
       shipping: order.shipping,
       status: order.status,
       customerConfirmation: order.customerConfirmation,
+      cancellation: order.cancellation
+        ? {
+            reason: order.cancellation.reason,
+            cancelledBy: {
+              id: order.cancellation.cancelledBy.toString(),
+              role: order.cancellation.cancelledByRole,
+            },
+            cancelledAt: order.cancellation.cancelledAt,
+          }
+        : undefined,
       createdAt: (obj as { createdAt?: Date }).createdAt,
       updatedAt: (obj as { updatedAt?: Date }).updatedAt,
     };
@@ -675,6 +709,22 @@ export class OrdersService {
       ctx: this.orderNotificationContext(order, {
         cookName: cookDisplayName,
         customerName: parties.customer.name,
+      }),
+    });
+  }
+
+  private async emitOrderCancelled(order: OrderDocument) {
+    const parties = await this.resolveOrderParties(order);
+    if (!parties) return;
+    await this.notificationsService.notifyOrderCancelled({
+      customer: parties.customer,
+      cook: parties.cook,
+      cancelledByRole: order.cancellation?.cancelledByRole ?? Role.Admin,
+      ctx: this.orderNotificationContext(order, {
+        cookName: parties.cookName,
+        customerName: parties.customer.name,
+        status: order.status,
+        cancellationReason: order.cancellation?.reason,
       }),
     });
   }
@@ -769,6 +819,7 @@ export class OrdersService {
       shippingStatus?: string;
       carrier?: string;
       trackingNumber?: string;
+      cancellationReason?: string;
     },
   ) {
     return {
@@ -785,6 +836,7 @@ export class OrdersService {
       shippingStatus: extra.shippingStatus,
       carrier: extra.carrier,
       trackingNumber: extra.trackingNumber,
+      cancellationReason: extra.cancellationReason,
     };
   }
 }

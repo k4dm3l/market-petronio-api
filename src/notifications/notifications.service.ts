@@ -265,6 +265,57 @@ export class NotificationsService {
     });
   }
 
+  async notifyOrderCancelled(params: {
+    customer: { userId: string; email: string };
+    cook: { userId: string; email: string };
+    cancelledByRole: string;
+    ctx: OrderNotificationContext;
+  }) {
+    const orderUrl = `${this.templates.platformUrl}/orders/${params.ctx.orderId}`;
+    const reason = this.escapeHtml(params.ctx.cancellationReason ?? '');
+    const byCustomer = params.cancelledByRole === 'customer';
+    const cookIntro = byCustomer
+      ? `Order ${params.ctx.orderNumber} has been cancelled by the customer.`
+      : `Order ${params.ctx.orderNumber} has been cancelled.`;
+
+    await this.dispatch({
+      userId: params.customer.userId,
+      email: params.customer.email,
+      orderId: params.ctx.orderId,
+      event: 'order.cancelled',
+      subject: `Order ${params.ctx.orderNumber} has been cancelled`,
+      html: this.templates.render(
+        'order-cancelled-customer',
+        'Order cancelled',
+        {
+          orderNumber: params.ctx.orderNumber,
+          reason,
+          cookName: params.ctx.cookName,
+        },
+        { label: 'View order', url: orderUrl },
+      ),
+    });
+
+    await this.dispatch({
+      userId: params.cook.userId,
+      email: params.cook.email,
+      orderId: params.ctx.orderId,
+      event: 'order.cancelled',
+      subject: `Order ${params.ctx.orderNumber} cancelled`,
+      html: this.templates.render(
+        'order-cancelled-cooker',
+        'Order cancelled',
+        {
+          orderNumber: params.ctx.orderNumber,
+          reason,
+          intro: cookIntro,
+          customerName: params.ctx.customerName,
+        },
+        { label: 'View order', url: orderUrl },
+      ),
+    });
+  }
+
   async notifyOrderReceived(params: {
     customer: { userId: string; email: string };
     cook: { userId: string; email: string };
@@ -439,5 +490,13 @@ export class NotificationsService {
     });
 
     return status;
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }

@@ -7,6 +7,7 @@ export type NotificationEvent =
   | 'payment.status_updated'
   | 'shipping.status_updated'
   | 'order.received'
+  | 'order.cancelled'
   | 'user.status_updated'
   | 'product.status_updated';
 
@@ -22,4 +23,5 @@ export type OrderNotificationContext = {
   shippingStatus?: string;
   carrier?: string;
   trackingNumber?: string;
+  cancellationReason?: string;
 };

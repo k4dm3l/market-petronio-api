@@ -48,7 +48,11 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
-  @ApiOperation({ summary: 'Login and receive access + refresh tokens' })
+  @ApiOperation({
+    summary: 'Login and receive access + refresh tokens',
+    description:
+      'When the user role is `cook`, the response includes a `cook` property with the owner cook profile (coordinates and payment methods).',
+  })
   @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);

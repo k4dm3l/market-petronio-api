@@ -140,6 +140,8 @@ Response for customers:
   @ApiOperation({
     summary:
       'Advance order status (cook/admin) or cancel PENDING/CONFIRMED (customer/cook/admin)',
+    description:
+      'To cancel, send `{ "status": "CANCELLED", "reason": "..." }` (reason 5–500 chars). Payment status is not changed. Stock is released if it was reserved.',
   })
   @ApiOkResponse({ type: OrderResponseDto })
   updateStatus(

@@ -13,6 +13,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '../common/crypto/password-hasher';
+import { CooksService } from '../cooks/cooks.service';
 import { UsersService } from '../users/users.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -24,6 +25,7 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly cooksService: CooksService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly notificationsService: NotificationsService,
@@ -97,7 +99,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.buildAuthResponse(user);
+    const response = await this.buildAuthResponse(user);
+    if (user.role !== Role.Cook) {
+      return response;
+    }
+
+    const cook = await this.cooksService.ownerProfileForUser(user.id);
+    return cook ? { ...response, cook } : response;
   }
 
   async refresh(refreshToken: string) {
