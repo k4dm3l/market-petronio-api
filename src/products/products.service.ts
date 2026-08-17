@@ -287,6 +287,42 @@ export class ProductsService {
     if (dto.isAvailable !== undefined) product.isAvailable = dto.isAvailable;
     if (dto.isActive !== undefined) product.isActive = dto.isActive;
 
+    // Omit `images` → keep existing. Provided list → replace set (ids or {id} objects).
+    if (dto.images !== undefined) {
+      const previousIds = (product.images ?? []).map((img) => String(img._id));
+      const nextIds = dto.images;
+      const onProduct = new Map(
+        (product.images ?? []).map((img) => [String(img._id), img]),
+      );
+
+      const toClaim: string[] = [];
+      for (const id of nextIds) {
+        if (!onProduct.has(id)) toClaim.push(id);
+      }
+
+      const claimed = await this.imageService.resolveImagesForProductUpdate(
+        toClaim,
+        actor.id,
+        product.id,
+      );
+      const claimedById = new Map(claimed.map((img) => [img.id, img]));
+
+      product.images = nextIds.map((id) => {
+        const existing = onProduct.get(id);
+        if (existing) return existing;
+        const img = claimedById.get(id)!;
+        return {
+          _id: img._id,
+          url: img.url,
+          publicId: img.publicId,
+        } as ProductImageDocument;
+      });
+
+      const removed = previousIds.filter((id) => !nextIds.includes(id));
+      await this.imageService.detachFromProduct(removed, product.id);
+      await this.imageService.markAssociatedToProduct(toClaim, product.id);
+    }
+
     await product.save();
     return this.toResponse(product);
   }

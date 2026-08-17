@@ -151,6 +151,8 @@ export class ProductsController {
   @Patch(':id')
   @ApiOperation({
     summary: 'Update product (owner cook or admin; isActive admin-only)',
+    description:
+      'Partial update. Omit `images` to keep current images. When `images` is sent (ids or `{ id, url, publicId }` objects), replaces the image set.',
   })
   update(
     @Param('id') id: string,

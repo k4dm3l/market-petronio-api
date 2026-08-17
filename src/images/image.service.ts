@@ -134,6 +134,86 @@ export class ImageService {
       .exec();
   }
 
+  /**
+   * Images for product update: TEMPORARY owned by user, or already ASSOCIATED to this product.
+   */
+  async resolveImagesForProductUpdate(
+    imageIds: string[],
+    uploadedBy: string,
+    productId: string,
+  ): Promise<ImageDocument[]> {
+    if (!imageIds.length) return [];
+
+    const uniqueIds = [...new Set(imageIds)];
+    if (uniqueIds.length !== imageIds.length) {
+      throw new BadRequestException('Duplicate image ids are not allowed');
+    }
+
+    for (const id of uniqueIds) {
+      if (!Types.ObjectId.isValid(id)) {
+        throw new BadRequestException(`Invalid image id: ${id}`);
+      }
+    }
+
+    const docs = await this.imageModel
+      .find({ _id: { $in: uniqueIds.map((id) => new Types.ObjectId(id)) } })
+      .exec();
+
+    if (docs.length !== uniqueIds.length) {
+      throw new BadRequestException('One or more images were not found');
+    }
+
+    const byId = new Map(docs.map((d) => [d.id, d]));
+    const ordered: ImageDocument[] = [];
+
+    for (const id of imageIds) {
+      const doc = byId.get(id)!;
+      if (doc.type !== ImageType.Product) {
+        throw new BadRequestException(`Image ${id} is not a product image`);
+      }
+      if (doc.uploadedBy.toString() !== uploadedBy) {
+        throw new ForbiddenException(`Image ${id} does not belong to you`);
+      }
+
+      const onThisProduct =
+        doc.status === ImageStatus.Associated &&
+        doc.entityType === ImageEntityType.Product &&
+        doc.entityId?.toString() === productId;
+
+      const claimableTemp = doc.status === ImageStatus.Temporary;
+
+      if (!onThisProduct && !claimableTemp) {
+        throw new BadRequestException(
+          `Image ${id} is not available for this product`,
+        );
+      }
+      ordered.push(doc);
+    }
+
+    return ordered;
+  }
+
+  /** Detach images no longer on the product (become TEMPORARY again; not deleted). */
+  async detachFromProduct(imageIds: string[], productId: string): Promise<void> {
+    if (!imageIds.length) return;
+    await this.imageModel
+      .updateMany(
+        {
+          _id: { $in: imageIds.map((id) => new Types.ObjectId(id)) },
+          entityType: ImageEntityType.Product,
+          entityId: new Types.ObjectId(productId),
+        },
+        {
+          $set: {
+            status: ImageStatus.Temporary,
+            entityType: null,
+            entityId: null,
+          },
+        },
+      )
+      .exec();
+  }
+
   async findById(id: string): Promise<ImageDocument | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     return this.imageModel.findById(id).exec();

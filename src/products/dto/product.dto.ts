@@ -186,6 +186,33 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional. Omit to keep current images. Accepts image ids (string) or `{ id, url?, publicId? }` objects from the client. Replaces the product image set when provided.',
+    example: [
+      {
+        id: '68af1a2b3c4d5e6f78901234',
+        url: 'https://res.cloudinary.com/...',
+        publicId: 'products/temp/abc',
+      },
+    ],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) return value;
+    return value.map((item: unknown) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object' && 'id' in item) {
+        return String((item as { id: unknown }).id);
+      }
+      return item;
+    });
+  })
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsMongoId({ each: true })
+  images?: string[];
 }
 
 export class QueryProductsDto extends CursorPaginationQueryDto {
