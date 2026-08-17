@@ -4,6 +4,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { SearchQueryDto } from '../common/dto/search-query.dto';
 import { CursorPaginationQueryDto } from '../common/pagination/cursor-pagination.dto';
 import { Role } from '../common/enums/role.enum';
+import { QueryAdminCooksDto } from '../cooks/dto/cook.dto';
 import { ListOrdersQueryDto } from '../orders/dto/order.dto';
 import { AdminService } from './admin.service';
 import { SetActiveDto } from './dto/set-active.dto';
@@ -44,9 +45,9 @@ export class AdminController {
   @ApiOperation({
     summary: 'List all cooks (including inactive)',
     description:
-      'Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email.',
+      'Cursor pagination (`limit`, `cursor`). Optional `search` matches display name, bio, location, specialties, WhatsApp, or linked user name/email. Optional `tags` filters specialties with `$in` (any match).',
   })
-  listCooks(@Query() query: SearchQueryDto) {
+  listCooks(@Query() query: QueryAdminCooksDto) {
     return this.adminService.listCooks(query);
   }
 

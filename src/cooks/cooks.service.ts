@@ -85,6 +85,10 @@ export class CooksService {
     const filter: Record<string, unknown> = { isActive: true };
     const useGeo = query.lat != null && query.lng != null;
 
+    if (query.tags?.length) {
+      filter.specialties = { $in: query.tags };
+    }
+
     if (useGeo) {
       const radius = query.radius ?? 10000;
       filter.location = {
@@ -115,10 +119,14 @@ export class CooksService {
   }
 
   async listAllForAdmin(
-    query: CursorPaginationQueryDto & { search?: string } = {},
+    query: CursorPaginationQueryDto & { search?: string; tags?: string[] } = {},
   ) {
     const limit = resolveLimit(query.limit);
     const filter: Record<string, unknown> = {};
+
+    if (query.tags?.length) {
+      filter.specialties = { $in: query.tags };
+    }
 
     if (query.search?.trim()) {
       const q = escapeRegex(query.search.trim());

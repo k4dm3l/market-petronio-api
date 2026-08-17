@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -14,8 +14,18 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { SearchQueryDto } from '../../common/dto/search-query.dto';
 import { CursorPaginationQueryDto } from '../../common/pagination/cursor-pagination.dto';
 import { PaymentMethodType } from '../schemas/cook.schema';
+
+function parseTagsQueryParam(value: unknown): string[] | undefined {
+  if (value == null || value === '') return undefined;
+  const parts = Array.isArray(value) ? value : String(value).split(',');
+  const tags = [
+    ...new Set(parts.map((t) => String(t).trim()).filter(Boolean)),
+  ];
+  return tags.length ? tags : undefined;
+}
 
 export class PaymentMethodDto {
   @ApiProperty({ enum: PaymentMethodType })
@@ -181,4 +191,28 @@ export class QueryCooksDto extends CursorPaginationQueryDto {
   @Min(100)
   @Max(100000)
   radius?: number;
+
+  @ApiPropertyOptional({
+    example: 'Seafood,Tamales',
+    description:
+      'Match cooks whose specialties include any of these tags (`$in`). Comma-separated or repeated `tags`.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseTagsQueryParam(value))
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+}
+
+export class QueryAdminCooksDto extends SearchQueryDto {
+  @ApiPropertyOptional({
+    example: 'Seafood,Tamales',
+    description:
+      'Match cooks whose specialties include any of these tags (`$in`). Comma-separated or repeated `tags`.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseTagsQueryParam(value))
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }
