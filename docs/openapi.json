@@ -1082,6 +1082,7 @@
         ]
       },
       "patch": {
+        "description": "Partial update. Omit `images` to keep current images. When `images` is sent (ids or `{ id, url, publicId }` objects), replaces the image set.",
         "operationId": "ProductsController_update",
         "parameters": [
           {
@@ -3205,6 +3206,20 @@
           "isActive": {
             "type": "boolean",
             "description": "Admin soft-deactivate"
+          },
+          "images": {
+            "description": "Optional. Omit to keep current images. Accepts image ids (string) or `{ id, url?, publicId? }` objects from the client. Replaces the product image set when provided.",
+            "example": [
+              {
+                "id": "68af1a2b3c4d5e6f78901234",
+                "url": "https://res.cloudinary.com/...",
+                "publicId": "products/temp/abc"
+              }
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
