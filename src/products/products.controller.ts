@@ -141,7 +141,7 @@ export class ProductsController {
     summary:
       'Create product (cook: own catalog; admin: must pass cookId)',
     description:
-      'Optional `images`: ids from POST /products/images. Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.',
+      'Optional `images`: ids from POST /products/images (or `{ id, url, publicId }` objects). Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.',
   })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateProductDto) {
     return this.productsService.create(user, dto);

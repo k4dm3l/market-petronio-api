@@ -843,7 +843,7 @@
         ]
       },
       "post": {
-        "description": "Optional `images`: ids from POST /products/images. Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.",
+        "description": "Optional `images`: ids from POST /products/images (or `{ id, url, publicId }` objects). Validates ownership + TEMPORARY status, embeds `{ url, publicId }` (same `_id`), marks ASSOCIATED.",
         "operationId": "ProductsController_create",
         "parameters": [],
         "requestBody": {
@@ -3267,9 +3267,14 @@
           },
           "images": {
             "example": [
-              "68af1a2b3c4d5e6f78901234"
+              "68af1a2b3c4d5e6f78901234",
+              {
+                "id": "68af1a2b3c4d5e6f78901234",
+                "url": "https://res.cloudinary.com/...",
+                "publicId": "products/temp/abc"
+              }
             ],
-            "description": "Ids from POST /products/images (TEMPORARY images owned by you). Embedded on the product as `{ id, url }` / `{ url, publicId }` subdocs.",
+            "description": "Ids from POST /products/images (TEMPORARY images owned by you). Accepts image ids (string) or `{ id, url?, publicId? }` objects. Embedded on the product as `{ id, url, publicId }` subdocs.",
             "type": "array",
             "items": {
               "type": "string"

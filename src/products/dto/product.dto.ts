@@ -86,11 +86,28 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({
     type: [String],
-    example: ['68af1a2b3c4d5e6f78901234'],
+    example: [
+      '68af1a2b3c4d5e6f78901234',
+      {
+        id: '68af1a2b3c4d5e6f78901234',
+        url: 'https://res.cloudinary.com/...',
+        publicId: 'products/temp/abc',
+      },
+    ],
     description:
-      'Ids from POST /products/images (TEMPORARY images owned by you). Embedded on the product as `{ id, url }` / `{ url, publicId }` subdocs.',
+      'Ids from POST /products/images (TEMPORARY images owned by you). Accepts image ids (string) or `{ id, url?, publicId? }` objects. Embedded on the product as `{ id, url, publicId }` subdocs.',
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) return value;
+    return value.map((item: unknown) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object' && 'id' in item) {
+        return String((item as { id: unknown }).id);
+      }
+      return item;
+    });
+  })
   @IsArray()
   @ArrayMaxSize(5)
   @IsMongoId({ each: true })
