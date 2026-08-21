@@ -24,7 +24,6 @@ import {
 import {
   DeliveryInformation,
   User,
-  UserAddress,
   UserDocument,
 } from './schemas/user.schema';
 
@@ -171,10 +170,16 @@ export class UsersService {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    const existing = user.addresses ?? [];
-    const makePrimary = existing.length === 0 || dto.isPrimary === true;
+    const addresses = [...(user.addresses ?? [])];
+    const makePrimary = addresses.length === 0 || dto.isPrimary === true;
 
-    const address: UserAddress = {
+    if (makePrimary) {
+      for (const existing of addresses) {
+        existing.isPrimary = false;
+      }
+    }
+
+    addresses.push({
       id: randomUUID(),
       country: dto.country.trim(),
       department: dto.department.trim(),
@@ -190,39 +195,11 @@ export class UsersService {
         ],
       },
       isPrimary: makePrimary,
-    };
+    });
 
-    // Atomic: demote previous primaries when promoting, then push
-    const updated = await this.userModel
-      .findOneAndUpdate(
-        { _id: userId },
-        [
-          {
-            $set: {
-              addresses: {
-                $concatArrays: [
-                  {
-                    $map: {
-                      input: { $ifNull: ['$addresses', []] },
-                      as: 'a',
-                      in: makePrimary
-                        ? { $mergeObjects: ['$$a', { isPrimary: false }] }
-                        : '$$a',
-                    },
-                  },
-                  [address],
-                ],
-              },
-            },
-          },
-        ],
-        { new: true },
-      )
-      .select('-passwordHash')
-      .exec();
-
-    if (!updated) throw new NotFoundException('User not found');
-    return this.toPublic(updated);
+    user.addresses = addresses;
+    await user.save();
+    return this.toPublic(user);
   }
 
   async updateAddress(
@@ -241,7 +218,8 @@ export class UsersService {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    const current = (user.addresses ?? []).find((a) => a.id === addressId);
+    const addresses = [...(user.addresses ?? [])];
+    const current = addresses.find((a) => a.id === addressId);
     if (!current) throw new NotFoundException('Address not found');
 
     if (dto.isPrimary === false && current.isPrimary) {
@@ -250,16 +228,14 @@ export class UsersService {
       );
     }
 
-    const promote = dto.isPrimary === true;
-    const patch: Record<string, unknown> = {};
-    if (dto.country !== undefined) patch.country = dto.country.trim();
-    if (dto.department !== undefined) patch.department = dto.department.trim();
-    if (dto.city !== undefined) patch.city = dto.city.trim();
-    if (dto.address !== undefined) patch.address = dto.address.trim();
-    if (dto.notes !== undefined) patch.notes = dto.notes.trim();
-    if (dto.zipcode !== undefined) patch.zipcode = dto.zipcode.trim();
+    if (dto.country !== undefined) current.country = dto.country.trim();
+    if (dto.department !== undefined) current.department = dto.department.trim();
+    if (dto.city !== undefined) current.city = dto.city.trim();
+    if (dto.address !== undefined) current.address = dto.address.trim();
+    if (dto.notes !== undefined) current.notes = dto.notes.trim();
+    if (dto.zipcode !== undefined) current.zipcode = dto.zipcode.trim();
     if (dto.coordinates) {
-      patch.coordinates = {
+      current.coordinates = {
         type: 'Point',
         coordinates: [
           dto.coordinates.coordinates[0],
@@ -267,39 +243,16 @@ export class UsersService {
         ],
       };
     }
-    if (dto.isPrimary !== undefined) patch.isPrimary = dto.isPrimary;
 
-    const updated = await this.userModel
-      .findOneAndUpdate(
-        { _id: userId, 'addresses.id': addressId },
-        [
-          {
-            $set: {
-              addresses: {
-                $map: {
-                  input: { $ifNull: ['$addresses', []] },
-                  as: 'a',
-                  in: {
-                    $cond: [
-                      { $eq: ['$$a.id', addressId] },
-                      { $mergeObjects: ['$$a', patch] },
-                      promote
-                        ? { $mergeObjects: ['$$a', { isPrimary: false }] }
-                        : '$$a',
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        ],
-        { new: true },
-      )
-      .select('-passwordHash')
-      .exec();
+    if (dto.isPrimary === true) {
+      for (const address of addresses) {
+        address.isPrimary = address.id === addressId;
+      }
+    }
 
-    if (!updated) throw new NotFoundException('Address not found');
-    return this.toPublic(updated);
+    user.addresses = addresses;
+    await user.save();
+    return this.toPublic(user);
   }
 
   async deleteAddress(userId: string, addressId: string) {
